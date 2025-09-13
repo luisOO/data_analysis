@@ -1,0 +1,37 @@
+{ 
+	 "businessCode": "C2025072500018", 
+	 "calculateItemVO": { 
+	 	 "subList": [ 
+	 	 	 { 
+	 	 	 	 "subList": [ 
+	 	 	 	 	 { 
+	 	 	 	 	 	 "subList": [ 
+	 	 	 	 	 	 	 { 
+	 	 	 	 	 	 	 	 "calcLevel": "part", 
+	 	 	 	 	 	 	 	 "netSalesRevenue": 283575, 
+	 	 	 	 	 	 	 	 "listPriceTotalOutHardware": 0 
+	 	 	 	 	 	 	 } 
+	 	 	 	 	 	 ], 
+	 	 	 	 	 	 "productName": "5885H V5", 
+	 	 	 	 	 	 "calcLevel": "model", 
+	 	 	 	 	 	 
+	 	 	 	 	 	 "netSalesRevenue": 283575, 
+	 	 	 	 	 	 "listPriceTotalOutHardware": 0, 
+	 	 	 	 	 	 "totalCgp": 89.949749 
+	 	 	 	 	 } 
+	 	 	 	 ], 
+	 	 	 	 "calcLevel": "boq", 
+	 	 	 	 "netSalesRevenue": 283575, 
+	 	 	 	 "listPriceTotalOutHardware": 0, 
+	 	 	 	 "totalCgp": 89.949749 
+	 	 	 } 
+	 	 ], 
+	 	 
+	 	 "calcLevel": "total", 
+	 	 "arCapitalTakesUpCostSoftware": 0, 
+	 	 "netSalesRevenue": 787691.75, 
+	 	 "listPriceTotalOutHardware": 0, 
+	 	 "totalCgp": 87.920246 
+	 }, 
+	 "netSalesRevenue": 787691.75 
+}

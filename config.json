@@ -1,0 +1,47 @@
+{
+  "document_info_fields": ["businessCode", "netSalesRevenue"],
+  "data_hierarchy_names": {
+    "total": "整体",
+    "boq": "BOQ",
+    "model": "模型",
+    "part": "部件"
+  },
+  "default_data_path": "{}",
+  "ui_theme": {},
+  "factor_categories": {
+    "基础因子": [
+      {
+        "name": "收入因子",
+        "basic_info": ["businessCode", "netSalesRevenue", "description", "unit", "category", "calcLevel", "totalCgp"],
+        "table_info": {
+          "total": ["netSalesRevenue", "listPriceTotalOutHardware"],
+          "boq": ["netSalesRevenue", "listPriceTotalOutHardware"],
+          "model": ["netSalesRevenue", "listPriceTotalOutHardware", "productName"],
+          "part": ["netSalesRevenue", "listPriceTotalOutHardware"]
+        }
+      },
+      {
+        "name": "成本因子",
+        "basic_info": ["businessCode", "totalCgp", "description", "unit", "category"],
+        "table_info": {
+          "total": ["totalCgp", "arCapitalTakesUpCostSoftware"],
+          "boq": ["totalCgp"],
+          "model": ["totalCgp"],
+          "part": []
+        }
+      }
+    ]
+  },
+  "display_names": {
+    "netSalesRevenue": "净销售收入",
+    "listPriceTotalOutHardware": "硬件外总价",
+    "totalCgp": "总成本毛利率",
+    "arCapitalTakesUpCostSoftware": "软件资本成本",
+    "productName": "产品名称",
+    "calcLevel": "计算层级",
+    "description": "描述",
+    "unit": "单位",
+    "category": "分类",
+    "businessCode": "业务代码"
+  }
+}
