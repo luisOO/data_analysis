@@ -39,7 +39,7 @@ class AppController:
         
         try:
             self.config_manager = ConfigManager()
-            self.data_manager = DataManager()
+            self.data_manager = DataManager(config_manager=self.config_manager)
             self.view = MainAppView(self)
             self.current_sub_factor = None
             self.logger.info("应用程序初始化完成")
@@ -177,8 +177,9 @@ class AppController:
             # 初始化数据层次选择
             self.view.factor_view.detail_view.setup_data_hierarchy_selection()
             
-            # 默认选择total层次并显示数据
-            self.on_hierarchy_node_select("total")
+            # 默认选择配置的层次并显示数据
+            default_level = self.config_manager.get_default_hierarchy_level()
+            self.on_hierarchy_node_select(default_level)
 
     def on_hierarchy_node_select(self, level):
         """处理层级节点选择事件"""
@@ -200,13 +201,14 @@ class AppController:
             
             # 将列名转换为显示名称
             display_columns = {}
-            for col in df.columns:
+            # 使用配置的列来生成显示名称映射，而不是df.columns
+            for col in columns:
                 display_name = self.config_manager.get_display_name(col)
                 display_columns[col] = display_name
             
             # 更新右侧详情视图的数据表格
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
-                self.view.factor_view.detail_view.display_data_table(df, display_columns)
+                self.view.factor_view.detail_view.display_data_table(df, display_columns, columns)
                 self.logger.info(f"成功更新表格数据，共 {len(df)} 行")
                 
         except Exception as e:
@@ -230,7 +232,10 @@ class AppController:
                     
                 # 更新表格显示
                 if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
-                    self.view.factor_view.detail_view.display_data_table(self.current_df, display_columns)
+                    # 获取当前层级的列配置
+                    current_level = getattr(self.view.factor_view.detail_view, 'current_level', 'part')
+                    columns = self.config_manager.get_data_table_columns(current_level, self.current_sub_factor)
+                    self.view.factor_view.detail_view.display_data_table(self.current_df, display_columns, columns)
                 return
             
             # 过滤数据

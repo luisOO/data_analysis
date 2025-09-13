@@ -99,7 +99,9 @@ class ConfigManager:
                 'boq': '清单项',
                 'model': '模型构件',
                 'part': '零部件'
-            }
+            },
+            'enabled_hierarchy_levels': ['total', 'boq', 'model', 'part'],
+            'default_hierarchy_level': 'part'
         }
 
     def get_document_info_fields(self):
@@ -140,11 +142,20 @@ class ConfigManager:
     def get_data_hierarchy_name(self, level):
         """获取数据层次的显示名称"""
         return self.config.get('data_hierarchy_names', {}).get(level, level)
+    
+    def get_enabled_hierarchy_levels(self):
+        """获取启用的数据层次级别"""
+        return self.config.get('enabled_hierarchy_levels', ['total', 'boq', 'model', 'part'])
+    
+    def get_default_hierarchy_level(self):
+        """获取默认的数据层次级别"""
+        return self.config.get('default_hierarchy_level', 'total')
 
 class DataManager:
-    def __init__(self, data_path=None):
+    def __init__(self, data_path=None, config_manager=None):
         self.data = None
         self.data_path = data_path
+        self.config_manager = config_manager
         if data_path:
             self.load_data(data_path)
     
@@ -385,7 +396,9 @@ class DataManager:
         
     def get_hierarchy_levels(self):
         """获取数据层次级别"""
-        # DataManager不直接访问配置，返回默认的层次级别
+        if self.config_manager:
+            return self.config_manager.get_enabled_hierarchy_levels()
+        # 如果没有配置管理器，返回默认的层次级别
         return ["total", "boq", "model", "part"]
     
     def _get_memory_usage(self):

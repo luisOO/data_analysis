@@ -102,6 +102,8 @@ class ConfigManagerUI:
                 "model": "模型构件",
                 "part": "零部件"
             },
+            "enabled_hierarchy_levels": ["total", "boq", "model", "part"],
+            "default_hierarchy_level": "part",
             "default_data_path": "sample.json",
             "ui_theme": {
                 "font_family": "微软雅黑",

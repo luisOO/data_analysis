@@ -847,10 +847,11 @@ class SubFactorDetailView:
             radio.pack(side=tk.LEFT, padx=5, pady=2)
             self.hierarchy_radios[level] = radio
             
-        # 默认选择total层次
-        if hierarchy_levels and "total" in hierarchy_levels:
-            self.hierarchy_var.set("total")
-            self.on_hierarchy_level_select("total")
+        # 默认选择配置的层次
+        default_level = self.controller.config_manager.get_default_hierarchy_level()
+        if hierarchy_levels and default_level in hierarchy_levels:
+            self.hierarchy_var.set(default_level)
+            self.on_hierarchy_level_select(default_level)
         elif hierarchy_levels:
             self.hierarchy_var.set(hierarchy_levels[0])
             self.on_hierarchy_level_select(hierarchy_levels[0])
@@ -887,36 +888,47 @@ class SubFactorDetailView:
         # 通知控制器应用过滤
         self.controller.apply_search_filter(current_level, search_text)
             
-    def display_data_table(self, df, display_columns=None):
+    def display_data_table(self, df, display_columns=None, columns_config=None):
         self.data_table.delete(*self.data_table.get_children())
-        if df.empty:
-            # 显示空数据提示
+        
+        # 清除可能存在的空数据提示
+        for widget in self.table_frame.winfo_children():
+            if isinstance(widget, ttk.Label) and widget.cget("text") == "暂无数据":
+                widget.destroy()
+        
+        # 确定要显示的列
+        if df.empty and columns_config:
+            # 如果DataFrame为空但有列配置，使用配置的列
+            columns_to_show = columns_config
+        elif not df.empty:
+            # 如果有数据，使用DataFrame的列
+            columns_to_show = list(df.columns)
+        else:
+            # 既没有数据也没有列配置，显示空数据提示
             empty_label = ttk.Label(self.table_frame, text="暂无数据", font=("Microsoft YaHei UI", 12), foreground="#999999")
             empty_label.place(relx=0.5, rely=0.5, anchor="center")
             return
-        else:
-            # 清除可能存在的空数据提示
-            for widget in self.table_frame.winfo_children():
-                if isinstance(widget, ttk.Label) and widget.cget("text") == "暂无数据":
-                    widget.destroy()
-
+            
         # 设置表格列
-        self.data_table["columns"] = list(df.columns)
+        self.data_table["columns"] = columns_to_show
         
         # 设置列标题和宽度
-        for col in df.columns:
+        for col in columns_to_show:
             # 如果提供了显示名称映射，使用映射的名称
             display_name = display_columns.get(col, col) if display_columns else col
             self.data_table.heading(col, text=display_name, command=lambda c=col: self.sort_by_column(c))
             
             # 根据内容自动调整列宽
             max_width = len(display_name) * 10 + 20  # 基础宽度
-            for i, value in enumerate(df[col]):
-                if i > 100:  # 限制检查的行数以提高性能
-                    break
-                width = len(str(value)) * 8 + 20
-                if width > max_width:
-                    max_width = width
+            
+            # 如果有数据，根据内容调整列宽
+            if not df.empty and col in df.columns:
+                for i, value in enumerate(df[col]):
+                    if i > 100:  # 限制检查的行数以提高性能
+                        break
+                    width = len(str(value)) * 8 + 20
+                    if width > max_width:
+                        max_width = width
             
             # 限制最大宽度
             if max_width > 300:
@@ -924,10 +936,11 @@ class SubFactorDetailView:
                 
             self.data_table.column(col, width=max_width, minwidth=50)
             
-        # 插入数据到表格
-        for index, row in df.iterrows():
-            values = [str(row[col]) if pd.notna(row[col]) else "" for col in df.columns]
-            self.data_table.insert("", "end", values=values)
+        # 插入数据到表格（只有在有数据时才插入）
+        if not df.empty:
+            for index, row in df.iterrows():
+                values = [str(row[col]) if pd.notna(row[col]) and col in df.columns else "" for col in columns_to_show]
+                self.data_table.insert("", "end", values=values)
         
         # 保存原始数据用于搜索过滤
         self.original_data = df.copy()

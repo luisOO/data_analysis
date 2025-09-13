@@ -1,11 +1,13 @@
 {
   "document_info_fields": ["businessCode", "netSalesRevenue"],
   "data_hierarchy_names": {
-    "total": "整体",
-    "boq": "BOQ",
-    "model": "模型",
-    "part": "部件"
+    "total": "整单层",
+    "boq": "BOQ层",
+    "model": "模型层",
+    "part": "部件层"
   },
+  "enabled_hierarchy_levels": ["model", "part"],
+  "default_hierarchy_level": "part",
   "default_data_path": "{}",
   "ui_theme": {},
   "factor_categories": {
