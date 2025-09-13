@@ -192,7 +192,12 @@ pyinstaller calc_any.spec
    - 检查JSON语法是否正确
    - 参考config_template.json模板
 
-4. **内存不足**
+4. **表格字段显示问题**
+   - 启动时表格显示配置的字段名和中文名称
+   - 如果字段显示异常，检查配置文件中的display_names设置
+   - 确保table_info配置与display_names中的字段名一致
+
+5. **内存不足**
    - 程序已内置内存优化
    - 建议处理大文件时分批导入
    - 定期清理缓存
