@@ -197,6 +197,25 @@ class MainAppView(tk.Tk):
         view_menu = tk.Menu(self.menu_bar, tearoff=0)
         view_menu.add_command(label="刷新", command=lambda: self.controller.refresh_view())
         self.menu_bar.add_cascade(label="视图", menu=view_menu)
+    
+    def show_field_menu(self, event, text):
+        """显示字段右键菜单"""
+        self.current_field_value = text
+        try:
+            self.field_menu.post(event.x_root, event.y_root)
+        except:
+            # 如果菜单不存在，创建一个简单的菜单
+            field_menu = tk.Menu(self.frame, tearoff=0)
+            field_menu.add_command(label="复制值", command=lambda: self.copy_value_to_clipboard(text))
+            field_menu.post(event.x_root, event.y_root)
+    
+    def copy_value_to_clipboard(self, text):
+        """复制值到剪贴板"""
+        try:
+            self.frame.clipboard_clear()
+            self.frame.clipboard_append(str(text))
+        except:
+            pass
         
         # 工具菜单
         tools_menu = tk.Menu(self.menu_bar, tearoff=0)
@@ -260,9 +279,132 @@ class DocumentInfoView:
         self.controller = controller
         self.labels = {}
         
+        # 创建右键菜单
+        self.create_context_menu()
+        
         # 初始化时根据配置显示字段框架
         self.show_default_info()
+    
+    def create_context_menu(self):
+        """创建右键菜单"""
+        self.field_menu = tk.Menu(self.frame, tearoff=0)
+        self.field_menu.add_command(label="复制值", command=self.copy_field_value)
+    
+    def copy_field_value(self):
+        """复制字段值"""
+        if hasattr(self, 'current_field_value'):
+            try:
+                self.frame.clipboard_clear()
+                self.frame.clipboard_append(str(self.current_field_value))
+            except:
+                pass
+    
+    def show_field_menu(self, event, text):
+        """显示字段右键菜单"""
+        self.current_field_value = text
+        try:
+            self.field_menu.post(event.x_root, event.y_root)
+        except:
+            # 如果菜单不存在，创建一个简单的菜单
+            field_menu = tk.Menu(self.frame, tearoff=0)
+            field_menu.add_command(label="复制值", command=lambda: self.copy_value_to_clipboard(text))
+            field_menu.post(event.x_root, event.y_root)
+    
+    def copy_value_to_clipboard(self, text):
+        """复制值到剪贴板"""
+        try:
+            self.frame.clipboard_clear()
+            self.frame.clipboard_append(str(text))
+        except:
+            pass
         
+    def _create_field_display_layout(self, parent_frame, data, is_default=False):
+        """统一的字段显示布局方法"""
+        try:
+            if not data:
+                return
+            
+            # 直接在parent_frame上创建主容器框架，不添加额外滚动条
+            info_frame = tk.Frame(parent_frame, bg="white")
+            info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 获取配置文件中的字段顺序
+            doc_info_fields = self.controller.config_manager.get_document_info_fields()
+            
+            # 将配置的字段ID转换为显示名称
+            ordered_display_names = []
+            for field_id in doc_info_fields:
+                display_name = self.controller.config_manager.get_display_name(field_id)
+                if display_name in data:
+                    ordered_display_names.append(display_name)
+            
+            # 添加配置中没有但data中存在的字段（以防万一）
+            for field in data.keys():
+                if field not in ordered_display_names:
+                    ordered_display_names.append(field)
+            
+            # 固定布局：每行6个字段，确保对齐
+            fields_per_row = 6
+            field_groups = []
+            
+            # 将字段按每行6个分组
+            for i in range(0, len(ordered_display_names), fields_per_row):
+                group = ordered_display_names[i:i + fields_per_row]
+                field_groups.append(group)
+            
+            # 使用Grid布局确保字段精确对齐
+            # 配置列权重，确保每列等宽
+            for col in range(fields_per_row):
+                info_frame.grid_columnconfigure(col, weight=1, uniform="field_column")
+            
+            # 显示字段组，使用Grid布局确保对齐
+            for row_idx, group in enumerate(field_groups):
+                # 配置行权重
+                info_frame.grid_rowconfigure(row_idx, weight=0)
+                
+                # 为每个字段创建标签并放置在Grid中
+                for col_idx, field_key in enumerate(group):
+                    field_value = data[field_key]
+                    value_text = str(field_value) if field_value is not None else ("待加载..." if is_default else "N/A")
+                    
+                    # 字段名和值在同一行显示 - 统一字体颜色
+                    if value_text in ["N/A", "待加载..."]:
+                        value_color = "#333333"  # 统一为深灰色
+                        value_font = ("Microsoft YaHei UI", 9, "italic")
+                    else:
+                        value_color = "#000000"  # 统一为黑色
+                        value_font = ("Microsoft YaHei UI", 9, "normal")
+                    
+                    # 创建字段标签
+                    field_text = f"{field_key}: {value_text}"
+                    field_label = tk.Label(info_frame, text=field_text, 
+                                         font=("Microsoft YaHei UI", 9),
+                                         foreground=value_color,
+                                         cursor="hand2",
+                                         background="white",
+                                         anchor="w",
+                                         relief="flat",
+                                         padx=8, pady=3)
+                    # 使用Grid布局放置标签，sticky="ew"确保水平填充
+                    field_label.grid(row=row_idx, column=col_idx, sticky="ew", padx=2, pady=1)
+                    
+                    # 绑定复制功能（仅在非默认模式下）
+                    if not is_default:
+                        field_label.bind("<Button-3>", lambda e, text=value_text: self.show_field_menu(e, text))
+                        field_label.bind("<Double-Button-1>", lambda e, text=value_text: self.copy_value_to_clipboard(text))
+                        
+                        # 悬停效果（改变背景色）
+                        def on_enter(e, label=field_label):
+                            label.configure(background="#e8f4fd")
+                        def on_leave(e, label=field_label):
+                            label.configure(background="white")
+                        
+                        field_label.bind("<Enter>", on_enter)
+                        field_label.bind("<Leave>", on_leave)
+            
+        except Exception as e:
+            self.controller.logger.error(f"创建字段显示布局失败: {e}")
+    
     def show_default_info(self):
         """根据配置显示单据基本信息字段框架"""
         # 清除现有控件
@@ -275,46 +417,26 @@ class DocumentInfoView:
             
             if not doc_info_fields:
                 # 如果没有配置字段，显示空白框架
-                info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-                info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+                no_data_label = ttk.Label(self.frame, text="暂无单据信息", style="Info.TLabel")
+                no_data_label.pack(pady=20)
                 return
             
-            # 创建信息框架
-            info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-            info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-            
-            # 计算每行显示的字段数量
-            fields_per_row = 3
-            
-            # 根据配置字段显示空白字段框架
-            row, col = 0, 0
+            # 创建默认数据字典，用于布局计算
+            default_data = {}
             for field in doc_info_fields:
-                # 获取字段显示名称
                 display_name = self.controller.config_manager.get_display_name(field)
-                
-                # 创建一个框架来包含每个字段的标签和值
-                field_frame = ttk.Frame(info_frame, style="Info.TFrame")
-                field_frame.grid(row=row, column=col, padx=15, pady=8, sticky=tk.W)
-                
-                # 显示字段名称和空值
-                label_key = ttk.Label(field_frame, text=f"{display_name}:", width=12, anchor="e", style="Info.TLabel")
-                label_key.pack(side=tk.LEFT, padx=5)
-                
-                label_value = ttk.Label(field_frame, text="", style="Info.TLabel")
-                label_value.pack(side=tk.LEFT, padx=2)
-                
-                # 更新行列位置
-                col += 1
-                if col >= fields_per_row:
-                    col = 0
-                    row += 1
+                default_data[display_name] = "待加载..."  # 显示占位文本
+            
+            # 直接使用统一的字段显示布局方法，不使用Canvas滚动
+            self._create_field_display_layout(self.frame, default_data, is_default=True)
                     
         except Exception as e:
             # 如果出错，显示空白框架
-            info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-            info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+            no_data_label = ttk.Label(self.frame, text="暂无单据信息", style="Info.TLabel")
+            no_data_label.pack(pady=20)
 
     def display_info(self, data):
+        """显示单据基本信息数据"""
         # 清除现有控件
         for widget in self.frame.winfo_children():
             widget.destroy()
@@ -325,39 +447,8 @@ class DocumentInfoView:
             no_data_label.pack(pady=20)
             return
         
-        # 创建一个框架来水平排列字段
-        info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-        
-        # 计算每行显示的字段数量
-        fields_per_row = 3
-        total_fields = len(data)
-        
-        # 显示字段，从左到右排列
-        row, col = 0, 0
-        for key, value in data.items():
-            # 创建一个框架来包含每个字段的标签和值
-            field_frame = ttk.Frame(info_frame, style="Info.TFrame")
-            field_frame.grid(row=row, column=col, padx=15, pady=8, sticky=tk.W)
-            
-            # 显示字段名称和值
-            label_key = ttk.Label(field_frame, text=f"{key}:", width=12, anchor="e", style="Info.TLabel")
-            label_key.pack(side=tk.LEFT, padx=5)
-            
-            # 处理非字符串数据
-            if isinstance(value, (dict, list)):
-                value_str = str(value)[:50] + "..." if len(str(value)) > 50 else str(value)
-            else:
-                value_str = str(value)
-                
-            label_value = ttk.Label(field_frame, text=value_str, style="Info.TLabel")
-            label_value.pack(side=tk.LEFT, padx=2)
-            
-            # 更新行列位置
-            col += 1
-            if col >= fields_per_row:
-                col = 0
-                row += 1
+        # 直接使用统一的字段显示布局方法，不使用Canvas滚动
+        self._create_field_display_layout(self.frame, data, is_default=False)
 
 class FactorView:
     def __init__(self, parent, controller):
@@ -524,8 +615,8 @@ class SubFactorDetailView:
         # 基本信息区域 - 紧凑设计
         self.basic_info_frame = ttk.LabelFrame(main_container, text="📋 基本信息", style="Tech.TLabelframe")
         self.basic_info_frame.pack(fill=tk.X, padx=0, pady=(0, 8))
-        self.basic_info_frame.configure(height=100)  # 减小高度
-        self.basic_info_frame.pack_propagate(False)
+        # 不再固定高度，允许根据内容自适应
+        # 但仍然保持紧凑设计
         
         # 创建右键菜单
         self.create_context_menu()
@@ -570,7 +661,7 @@ class SubFactorDetailView:
         self.clear_button.pack(side=tk.LEFT, padx=(0, 3))
         
         # 添加提示信息 - 更小字体
-        self.search_tooltip = ttk.Label(self.search_frame, text="实时搜索", foreground="#888888", font=("Microsoft YaHei UI", 8))
+        self.search_tooltip = ttk.Label(self.search_frame, text="实时搜索", foreground="#333333", font=("Microsoft YaHei UI", 8))
         self.search_tooltip.pack(side=tk.LEFT)
 
         # 数据表格区域 - 占用剩余所有空间，科技风格
@@ -669,6 +760,9 @@ class SubFactorDetailView:
             # 复制到剪贴板
             self.frame.clipboard_clear()
             self.frame.clipboard_append(str(cell_value))
+            # 可以添加提示信息
+            self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#006600")
+            self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
     
     def copy_field_value(self):
         """复制字段值"""
@@ -683,26 +777,9 @@ class SubFactorDetailView:
         
         if not info:
             return
-            
-        # 创建滚动区域
-        canvas = tk.Canvas(self.basic_info_frame, height=120, bg="white", highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.basic_info_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # 布局滚动组件
-        canvas.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-        scrollbar.pack(side="right", fill="y")
-        
-        # 创建主容器框架，设置背景色
-        info_frame = tk.Frame(scrollable_frame, bg="white")
+        # 直接在basic_info_frame上创建主容器框架，不添加额外滚动条
+        info_frame = tk.Frame(self.basic_info_frame, bg="white")
         info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 定义字段显示优先级
@@ -712,75 +789,41 @@ class SubFactorDetailView:
         # 按优先级排序显示字段
         ordered_fields = [field for field in priority_fields if field in info] + other_fields
         
-        # 动态分配每行字段数量，根据字段内容长度智能分配
-        def calculate_field_width(field_key, field_value):
-            """计算字段显示所需的大概宽度"""
-            value_text = str(field_value) if field_value is not None else "N/A"
-            field_text = f"{field_key}: {value_text}"
-            # 估算字符宽度，中文字符按2个单位计算
-            width = 0
-            for char in field_text:
-                if ord(char) > 127:  # 中文字符
-                    width += 2
-                else:  # 英文字符
-                    width += 1
-            return width
-        
-        # 计算所有字段的宽度
-        field_widths = []
-        for field_key in ordered_fields:
-            field_value = info[field_key]
-            width = calculate_field_width(field_key, field_value)
-            field_widths.append((field_key, width))
-        
-        # 动态分组算法：尽可能在一行内放置更多字段
+        # 固定布局：每行4个字段，确保对齐
+        fields_per_row = 4
         field_groups = []
-        current_group = []
-        current_width = 0
-        max_width_per_row = 200  # 增加每行最大字符宽度，充分利用空间
         
-        for field_key, width in field_widths:
-            # 如果当前组为空或者添加当前字段不会超出宽度限制
-            if not current_group or (current_width + width + 10) <= max_width_per_row:  # 10为字段间距
-                current_group.append(field_key)
-                current_width += width + 10
-            else:
-                # 当前组已满，开始新组
-                if current_group:
-                    field_groups.append(current_group)
-                current_group = [field_key]
-                current_width = width + 10
+        # 将字段按每行6个分组
+        for i in range(0, len(ordered_fields), fields_per_row):
+            group = ordered_fields[i:i + fields_per_row]
+            field_groups.append(group)
         
-        # 添加最后一组
-        if current_group:
-            field_groups.append(current_group)
+        # 使用Grid布局确保字段精确对齐
+        # 配置列权重，确保每列等宽
+        for col in range(fields_per_row):
+            info_frame.grid_columnconfigure(col, weight=1, uniform="field_column")
         
-        # 显示字段组，使用行容器和pack布局确保填满整行
+        # 显示字段组，使用Grid布局确保对齐
         for row_idx, group in enumerate(field_groups):
-            # 创建行容器
-            row_frame = tk.Frame(info_frame, bg="white")
-            row_frame.pack(fill=tk.X, pady=1)
+            # 配置行权重
+            info_frame.grid_rowconfigure(row_idx, weight=0)
             
-            # 为每个字段创建等宽容器
+            # 为每个字段创建标签并放置在Grid中
             for col_idx, field_key in enumerate(group):
                 field_value = info[field_key]
                 value_text = str(field_value) if field_value is not None else "N/A"
                 
-                # 字段名和值在同一行显示
+                # 字段名和值在同一行显示 - 统一字体颜色
                 if value_text == "N/A":
-                    value_color = "#95a5a6"
+                    value_color = "#333333"  # 统一为深灰色
                     value_font = ("Microsoft YaHei UI", 9, "italic")
                 else:
-                    value_color = "#34495e"
+                    value_color = "#000000"  # 统一为黑色
                     value_font = ("Microsoft YaHei UI", 9, "normal")
                 
-                # 创建字段容器，确保等宽分布
-                field_container = tk.Frame(row_frame, bg="white")
-                field_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=1)
-                
-                # 创建字段标签，填满容器
+                # 创建字段标签
                 field_text = f"{field_key}: {value_text}"
-                field_label = tk.Label(field_container, text=field_text, 
+                field_label = tk.Label(info_frame, text=field_text, 
                                      font=("Microsoft YaHei UI", 9),
                                      foreground=value_color,
                                      cursor="hand2",
@@ -788,30 +831,21 @@ class SubFactorDetailView:
                                      anchor="w",
                                      relief="flat",
                                      padx=8, pady=3)
-                field_label.pack(fill=tk.BOTH, expand=True)
+                # 使用Grid布局放置标签，sticky="ew"确保水平填充
+                field_label.grid(row=row_idx, column=col_idx, sticky="ew", padx=2, pady=1)
                 
                 # 绑定复制功能
                 field_label.bind("<Button-3>", lambda e, text=value_text: self.show_field_menu(e, text))
                 field_label.bind("<Double-Button-1>", lambda e, text=value_text: self.copy_value_to_clipboard(text))
                 
                 # 悬停效果（改变背景色）
-                def on_enter(e, label=field_label, container=field_container):
+                def on_enter(e, label=field_label):
                     label.configure(background="#e8f4fd")
-                    container.configure(background="#e8f4fd")
-                def on_leave(e, label=field_label, container=field_container):
+                def on_leave(e, label=field_label):
                     label.configure(background="white")
-                    container.configure(background="white")
                 
                 field_label.bind("<Enter>", on_enter)
                 field_label.bind("<Leave>", on_leave)
-            
-            # 动态分组不需要空白占位符，每行字段数量根据内容自适应
-            
-        # 绑定鼠标滚轮事件
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind("<MouseWheel>", _on_mousewheel)
-        scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
                 
     def show_field_menu(self, event, value):
         """显示字段值右键菜单"""
@@ -905,7 +939,7 @@ class SubFactorDetailView:
             columns_to_show = list(df.columns)
         else:
             # 既没有数据也没有列配置，显示空数据提示
-            empty_label = ttk.Label(self.table_frame, text="暂无数据", font=("Microsoft YaHei UI", 12), foreground="#999999")
+            empty_label = ttk.Label(self.table_frame, text="暂无数据", font=("Microsoft YaHei UI", 12), foreground="#333333")
             empty_label.place(relx=0.5, rely=0.5, anchor="center")
             return
             
@@ -1000,9 +1034,9 @@ class SubFactorDetailView:
                         self.frame.clipboard_clear()
                         self.frame.clipboard_append(str(values[col_index]))
                         # 可以添加提示信息
-                        self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#008800")
+                        self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#006600")
                         # 2秒后恢复提示
-                        self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#666666"))
+                        self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
                         
     def show_context_menu(self, event):
         """显示右键菜单"""
@@ -1040,8 +1074,8 @@ class SubFactorDetailView:
             self.frame.clipboard_append(row_text)
             
             # 显示提示
-            self.search_tooltip.config(text="已复制整行数据到剪贴板", foreground="#008800")
-            self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#666666"))
+            self.search_tooltip.config(text="已复制整行数据到剪贴板", foreground="#006600")
+            self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
             
     def copy_cell_value(self, event):
         """复制单元格值"""
@@ -1058,8 +1092,8 @@ class SubFactorDetailView:
                 self.frame.clipboard_append(str(values[col_index]))
                 
                 # 显示提示
-                self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#008800")
-                self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#666666"))
+                self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#006600")
+                self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
                 
     def export_selected_row(self):
         """导出选中行数据"""
