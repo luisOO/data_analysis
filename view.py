@@ -328,20 +328,28 @@ class DocumentInfoView:
             info_frame = tk.Frame(parent_frame, bg="white")
             info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             
-            # 定义字段显示优先级
-            priority_fields = ['业务代码', '项目名称', '计算模式', '净销售收入']
-            other_fields = [field for field in sorted(data.keys()) if field not in priority_fields]
+            # 获取配置文件中的字段顺序
+            doc_info_fields = self.controller.config_manager.get_document_info_fields()
             
-            # 按优先级排序显示字段
-            ordered_fields = [field for field in priority_fields if field in data] + other_fields
+            # 将配置的字段ID转换为显示名称
+            ordered_display_names = []
+            for field_id in doc_info_fields:
+                display_name = self.controller.config_manager.get_display_name(field_id)
+                if display_name in data:
+                    ordered_display_names.append(display_name)
+            
+            # 添加配置中没有但data中存在的字段（以防万一）
+            for field in data.keys():
+                if field not in ordered_display_names:
+                    ordered_display_names.append(field)
             
             # 固定布局：每行6个字段，确保对齐
             fields_per_row = 6
             field_groups = []
             
             # 将字段按每行6个分组
-            for i in range(0, len(ordered_fields), fields_per_row):
-                group = ordered_fields[i:i + fields_per_row]
+            for i in range(0, len(ordered_display_names), fields_per_row):
+                group = ordered_display_names[i:i + fields_per_row]
                 field_groups.append(group)
             
             # 使用Grid布局确保字段精确对齐

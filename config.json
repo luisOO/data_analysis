@@ -1,7 +1,7 @@
 {
   "document_info_fields": ["businessCode","projectName", "calModel","onlineCalFlag", "warrantyBuyoutFlag","signSubject",
-  "tradeTerm","customerName","applyTypeName","naLevel","partsDealFlag","countryCode","currency","netSalesRevenue","grossMargin",
-"approveLevelName","serviceAppLevelName","regionGrossProfit", "regionGrossMargin","calculateDate"],
+  "tradeTerm","customerName","applyTypeName","naLevel","partsDealFlag","countryCode","currency",
+"approveLevelName","serviceAppLevelName","netSalesRevenue","grossMargin","regionGrossProfit", "regionGrossMargin","calculateDate"],
   "data_hierarchy_names": {
     "total": "整单层",
     "boq": "BOQ层",
