@@ -9,7 +9,7 @@
     "model": "模型层",
     "part": "部件层"
   },
-  "enabled_hierarchy_levels": ["model", "part"],
+  "enabled_hierarchy_levels": ["model", "part"],  
   "default_hierarchy_level": "part",
   "default_data_path": "{}",
   "ui_theme": {},

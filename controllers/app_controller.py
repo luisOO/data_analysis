@@ -2,34 +2,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import logging
 import os
-from datetime import datetime
-from data_model import ConfigManager, DataManager
-from view import MainAppView
+from models import ConfigManager, DataManager
+from views import MainAppView
+from utils import DataUtils
+from .logging_setup import setup_logging
 
-# 配置日志系统
-def setup_logging():
-    """设置日志系统"""
-    # 创建logs目录
-    log_dir = 'logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    # 设置日志文件名（包含日期）
-    log_filename = os.path.join(log_dir, f'app_{datetime.now().strftime("%Y%m%d")}.log')
-    
-    # 配置日志格式
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_filename, encoding='utf-8'),
-            logging.StreamHandler()  # 同时输出到控制台
-        ]
-    )
-    
-    # 创建应用专用的logger
-    logger = logging.getLogger('CalcAnyApp')
-    return logger
 
 class AppController:
     def __init__(self):
@@ -38,7 +15,9 @@ class AppController:
         self.logger.info("应用程序启动")
         
         try:
-            self.config_manager = ConfigManager()
+            # 加载配置文件
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+            self.config_manager = ConfigManager(config_path)
             self.data_manager = DataManager(config_manager=self.config_manager)
             self.view = MainAppView(self)
             self.current_sub_factor = None
@@ -52,6 +31,14 @@ class AppController:
         
         # 初始化因子分类框架
         self.setup_initial_factor_tabs()
+    
+    def _convert_to_display_info(self, data_dict):
+        """将数据字典转换为显示信息字典的通用方法"""
+        return DataUtils.convert_to_display_info(data_dict, self.config_manager)
+    
+    def _convert_to_display_columns(self, columns):
+        """将列名转换为显示列名的通用方法"""
+        return DataUtils.convert_to_display_columns(columns, self.config_manager)
 
     def setup_initial_factor_tabs(self):
         """根据配置初始化因子分类框架"""
@@ -130,13 +117,8 @@ class AppController:
             doc_info = self.data_manager.get_document_info(doc_info_fields)
             self.logger.info(f"文档信息: {doc_info}")
             
-            # 获取字段显示名称
-            display_info = {}
-            for field, value in doc_info.items():
-                self.logger.info(f"处理字段: {field}, 值: {value}")
-                display_name = self.config_manager.get_display_name(field)
-                display_info[display_name] = value
-            
+            # 使用通用方法转换显示信息
+            display_info = self._convert_to_display_info(doc_info)
             self.logger.info(f"显示信息: {display_info}")
             self.view.doc_info_view.display_info(display_info)
 
@@ -164,11 +146,8 @@ class AppController:
         # 从实际数据中获取basic info
         sub_factor_basic_info = self.data_manager.get_basic_info_from_data(sub_factor_name, basic_info_fields)
         
-        # 获取字段显示名称
-        display_info = {}
-        for field, value in sub_factor_basic_info.items():
-            display_name = self.config_manager.get_display_name(field)
-            display_info[display_name] = value
+        # 使用通用方法转换显示信息
+        display_info = self._convert_to_display_info(sub_factor_basic_info)
         
         # 更新右侧详情视图
         if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
@@ -190,7 +169,13 @@ class AppController:
         
         try:
             root_node = self.data_manager.get_calculate_item_vo()
+            self.logger.info(f"获取到的root_node: {type(root_node)}, 是否为None: {root_node is None}")
+            if root_node is None:
+                self.logger.error("root_node为None，数据可能未正确加载")
+                return
+            self.logger.info(f"准备调用get_all_nodes_for_level，参数: level={level}")
             nodes_at_level = self.data_manager.get_all_nodes_for_level(root_node, level)
+            self.logger.info(f"get_all_nodes_for_level返回结果: {len(nodes_at_level) if nodes_at_level else 0}个节点")
             
             # 使用当前选中的因子名称获取列配置
             columns = self.config_manager.get_data_table_columns(level, self.current_sub_factor)
@@ -199,12 +184,8 @@ class AppController:
             # 保存当前数据帧，用于搜索过滤
             self.current_df = df
             
-            # 将列名转换为显示名称
-            display_columns = {}
-            # 使用配置的列来生成显示名称映射，而不是df.columns
-            for col in columns:
-                display_name = self.config_manager.get_display_name(col)
-                display_columns[col] = display_name
+            # 使用通用方法转换显示列名
+            display_columns = self._convert_to_display_columns(columns)
             
             # 更新右侧详情视图的数据表格
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
@@ -222,22 +203,23 @@ class AppController:
         if not hasattr(self, 'current_df') or self.current_df is None or self.current_df.empty:
             return
             
-        # 检查搜索文本是否与上次相同，如果相同则跳过
-        if hasattr(self, '_last_search_text') and self._last_search_text == search_text and hasattr(self, '_last_search_level') and self._last_search_level == level:
+        # 更严格的重复检查 - 包括搜索文本、层级和数据版本
+        current_data_hash = hash(str(self.current_df.values.tobytes())) if hasattr(self.current_df, 'values') else 0
+        search_key = f"{level}_{search_text}_{current_data_hash}"
+        
+        if hasattr(self, '_last_search_key') and self._last_search_key == search_key:
             return
             
-        # 保存当前搜索文本和层级
+        # 保存当前搜索键
+        self._last_search_key = search_key
         self._last_search_text = search_text
         self._last_search_level = level
             
         try:
             # 如果搜索文本为空，显示所有数据
             if not search_text:
-                # 将列名转换为显示名称
-                display_columns = {}
-                for col in self.current_df.columns:
-                    display_name = self.config_manager.get_display_name(col)
-                    display_columns[col] = display_name
+                # 使用通用方法转换显示列名
+                display_columns = self._convert_to_display_columns(self.current_df.columns)
                     
                 # 更新表格显示
                 if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
@@ -261,11 +243,8 @@ class AppController:
                     
             filtered_df = filtered_df[mask]
             
-            # 将列名转换为显示名称
-            display_columns = {}
-            for col in filtered_df.columns:
-                display_name = self.config_manager.get_display_name(col)
-                display_columns[col] = display_name
+            # 使用通用方法转换显示列名
+            display_columns = self._convert_to_display_columns(filtered_df.columns)
                 
             # 更新表格显示
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
