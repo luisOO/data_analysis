@@ -197,6 +197,25 @@ class MainAppView(tk.Tk):
         view_menu = tk.Menu(self.menu_bar, tearoff=0)
         view_menu.add_command(label="刷新", command=lambda: self.controller.refresh_view())
         self.menu_bar.add_cascade(label="视图", menu=view_menu)
+    
+    def show_field_menu(self, event, text):
+        """显示字段右键菜单"""
+        self.current_field_value = text
+        try:
+            self.field_menu.post(event.x_root, event.y_root)
+        except:
+            # 如果菜单不存在，创建一个简单的菜单
+            field_menu = tk.Menu(self.frame, tearoff=0)
+            field_menu.add_command(label="复制值", command=lambda: self.copy_value_to_clipboard(text))
+            field_menu.post(event.x_root, event.y_root)
+    
+    def copy_value_to_clipboard(self, text):
+        """复制值到剪贴板"""
+        try:
+            self.frame.clipboard_clear()
+            self.frame.clipboard_append(str(text))
+        except:
+            pass
         
         # 工具菜单
         tools_menu = tk.Menu(self.menu_bar, tearoff=0)
@@ -260,9 +279,124 @@ class DocumentInfoView:
         self.controller = controller
         self.labels = {}
         
+        # 创建右键菜单
+        self.create_context_menu()
+        
         # 初始化时根据配置显示字段框架
         self.show_default_info()
+    
+    def create_context_menu(self):
+        """创建右键菜单"""
+        self.field_menu = tk.Menu(self.frame, tearoff=0)
+        self.field_menu.add_command(label="复制值", command=self.copy_field_value)
+    
+    def copy_field_value(self):
+        """复制字段值"""
+        if hasattr(self, 'current_field_value'):
+            try:
+                self.frame.clipboard_clear()
+                self.frame.clipboard_append(str(self.current_field_value))
+            except:
+                pass
+    
+    def show_field_menu(self, event, text):
+        """显示字段右键菜单"""
+        self.current_field_value = text
+        try:
+            self.field_menu.post(event.x_root, event.y_root)
+        except:
+            # 如果菜单不存在，创建一个简单的菜单
+            field_menu = tk.Menu(self.frame, tearoff=0)
+            field_menu.add_command(label="复制值", command=lambda: self.copy_value_to_clipboard(text))
+            field_menu.post(event.x_root, event.y_root)
+    
+    def copy_value_to_clipboard(self, text):
+        """复制值到剪贴板"""
+        try:
+            self.frame.clipboard_clear()
+            self.frame.clipboard_append(str(text))
+        except:
+            pass
         
+    def _create_field_display_layout(self, parent_frame, data, is_default=False):
+        """统一的字段显示布局方法"""
+        try:
+            if not data:
+                return
+            
+            # 直接在parent_frame上创建主容器框架，不添加额外滚动条
+            info_frame = tk.Frame(parent_frame, bg="white")
+            info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 定义字段显示优先级
+            priority_fields = ['业务代码', '项目名称', '计算模式', '净销售收入']
+            other_fields = [field for field in sorted(data.keys()) if field not in priority_fields]
+            
+            # 按优先级排序显示字段
+            ordered_fields = [field for field in priority_fields if field in data] + other_fields
+            
+            # 固定布局：每行6个字段，确保对齐
+            fields_per_row = 6
+            field_groups = []
+            
+            # 将字段按每行6个分组
+            for i in range(0, len(ordered_fields), fields_per_row):
+                group = ordered_fields[i:i + fields_per_row]
+                field_groups.append(group)
+            
+            # 使用Grid布局确保字段精确对齐
+            # 配置列权重，确保每列等宽
+            for col in range(fields_per_row):
+                info_frame.grid_columnconfigure(col, weight=1, uniform="field_column")
+            
+            # 显示字段组，使用Grid布局确保对齐
+            for row_idx, group in enumerate(field_groups):
+                # 配置行权重
+                info_frame.grid_rowconfigure(row_idx, weight=0)
+                
+                # 为每个字段创建标签并放置在Grid中
+                for col_idx, field_key in enumerate(group):
+                    field_value = data[field_key]
+                    value_text = str(field_value) if field_value is not None else ("待加载..." if is_default else "N/A")
+                    
+                    # 字段名和值在同一行显示
+                    if value_text in ["N/A", "待加载..."]:
+                        value_color = "#95a5a6"
+                        value_font = ("Microsoft YaHei UI", 9, "italic")
+                    else:
+                        value_color = "#34495e"
+                        value_font = ("Microsoft YaHei UI", 9, "normal")
+                    
+                    # 创建字段标签
+                    field_text = f"{field_key}: {value_text}"
+                    field_label = tk.Label(info_frame, text=field_text, 
+                                         font=("Microsoft YaHei UI", 9),
+                                         foreground=value_color,
+                                         cursor="hand2",
+                                         background="white",
+                                         anchor="w",
+                                         relief="flat",
+                                         padx=8, pady=3)
+                    # 使用Grid布局放置标签，sticky="ew"确保水平填充
+                    field_label.grid(row=row_idx, column=col_idx, sticky="ew", padx=2, pady=1)
+                    
+                    # 绑定复制功能（仅在非默认模式下）
+                    if not is_default:
+                        field_label.bind("<Button-3>", lambda e, text=value_text: self.show_field_menu(e, text))
+                        field_label.bind("<Double-Button-1>", lambda e, text=value_text: self.copy_value_to_clipboard(text))
+                        
+                        # 悬停效果（改变背景色）
+                        def on_enter(e, label=field_label):
+                            label.configure(background="#e8f4fd")
+                        def on_leave(e, label=field_label):
+                            label.configure(background="white")
+                        
+                        field_label.bind("<Enter>", on_enter)
+                        field_label.bind("<Leave>", on_leave)
+            
+        except Exception as e:
+            self.controller.logger.error(f"创建字段显示布局失败: {e}")
+    
     def show_default_info(self):
         """根据配置显示单据基本信息字段框架"""
         # 清除现有控件
@@ -275,46 +409,26 @@ class DocumentInfoView:
             
             if not doc_info_fields:
                 # 如果没有配置字段，显示空白框架
-                info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-                info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+                no_data_label = ttk.Label(self.frame, text="暂无单据信息", style="Info.TLabel")
+                no_data_label.pack(pady=20)
                 return
             
-            # 创建信息框架
-            info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-            info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-            
-            # 计算每行显示的字段数量
-            fields_per_row = 3
-            
-            # 根据配置字段显示空白字段框架
-            row, col = 0, 0
+            # 创建默认数据字典，用于布局计算
+            default_data = {}
             for field in doc_info_fields:
-                # 获取字段显示名称
                 display_name = self.controller.config_manager.get_display_name(field)
-                
-                # 创建一个框架来包含每个字段的标签和值
-                field_frame = ttk.Frame(info_frame, style="Info.TFrame")
-                field_frame.grid(row=row, column=col, padx=15, pady=8, sticky=tk.W)
-                
-                # 显示字段名称和空值
-                label_key = ttk.Label(field_frame, text=f"{display_name}:", width=12, anchor="e", style="Info.TLabel")
-                label_key.pack(side=tk.LEFT, padx=5)
-                
-                label_value = ttk.Label(field_frame, text="", style="Info.TLabel")
-                label_value.pack(side=tk.LEFT, padx=2)
-                
-                # 更新行列位置
-                col += 1
-                if col >= fields_per_row:
-                    col = 0
-                    row += 1
+                default_data[display_name] = "待加载..."  # 显示占位文本
+            
+            # 直接使用统一的字段显示布局方法，不使用Canvas滚动
+            self._create_field_display_layout(self.frame, default_data, is_default=True)
                     
         except Exception as e:
             # 如果出错，显示空白框架
-            info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-            info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+            no_data_label = ttk.Label(self.frame, text="暂无单据信息", style="Info.TLabel")
+            no_data_label.pack(pady=20)
 
     def display_info(self, data):
+        """显示单据基本信息数据"""
         # 清除现有控件
         for widget in self.frame.winfo_children():
             widget.destroy()
@@ -325,39 +439,8 @@ class DocumentInfoView:
             no_data_label.pack(pady=20)
             return
         
-        # 创建一个框架来水平排列字段
-        info_frame = ttk.Frame(self.frame, style="Info.TFrame")
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-        
-        # 计算每行显示的字段数量
-        fields_per_row = 3
-        total_fields = len(data)
-        
-        # 显示字段，从左到右排列
-        row, col = 0, 0
-        for key, value in data.items():
-            # 创建一个框架来包含每个字段的标签和值
-            field_frame = ttk.Frame(info_frame, style="Info.TFrame")
-            field_frame.grid(row=row, column=col, padx=15, pady=8, sticky=tk.W)
-            
-            # 显示字段名称和值
-            label_key = ttk.Label(field_frame, text=f"{key}:", width=12, anchor="e", style="Info.TLabel")
-            label_key.pack(side=tk.LEFT, padx=5)
-            
-            # 处理非字符串数据
-            if isinstance(value, (dict, list)):
-                value_str = str(value)[:50] + "..." if len(str(value)) > 50 else str(value)
-            else:
-                value_str = str(value)
-                
-            label_value = ttk.Label(field_frame, text=value_str, style="Info.TLabel")
-            label_value.pack(side=tk.LEFT, padx=2)
-            
-            # 更新行列位置
-            col += 1
-            if col >= fields_per_row:
-                col = 0
-                row += 1
+        # 直接使用统一的字段显示布局方法，不使用Canvas滚动
+        self._create_field_display_layout(self.frame, data, is_default=False)
 
 class FactorView:
     def __init__(self, parent, controller):

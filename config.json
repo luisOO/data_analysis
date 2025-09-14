@@ -1,5 +1,7 @@
 {
-  "document_info_fields": ["businessCode", "netSalesRevenue"],
+  "document_info_fields": ["businessCode","projectName", "calModel","onlineCalFlag", "warrantyBuyoutFlag","signSubject",
+  "tradeTerm","customerName","applyTypeName","naLevel","partsDealFlag","countryCode","currency","netSalesRevenue","grossMargin",
+"approveLevelName","serviceAppLevelName","regionGrossProfit", "regionGrossMargin","calculateDate"],
   "data_hierarchy_names": {
     "total": "整单层",
     "boq": "BOQ层",
@@ -11,19 +13,17 @@
   "default_data_path": "{}",
   "ui_theme": {},
   "factor_categories": {
-    "基础因子": [
+    "收入因子": [
       {
-        "name": "收入因子",
-        "basic_info": ["businessCode", "netSalesRevenue", "description", "unit", "category", "calcLevel", "totalCgp"],
+        "name": "全额预付优惠率",
+        "basic_info": ["saleScenceName", "fullPrepayFlag", "signSubject", "countryCode"],
         "table_info": {
-          "total": ["netSalesRevenue", "listPriceTotalOutHardware"],
-          "boq": ["netSalesRevenue", "listPriceTotalOutHardware"],
           "model": ["netSalesRevenue", "listPriceTotalOutHardware", "productName"],
-          "part": ["netSalesRevenue", "listPriceTotalOutHardware"]
+          "part": ["partCode", "productName","capitalOccupation"]
         }
       },
       {
-        "name": "成本因子",
+        "name": "总代进销存",
         "basic_info": ["businessCode", "totalCgp", "description", "unit", "category"],
         "table_info": {
           "total": ["totalCgp", "arCapitalTakesUpCostSoftware"],
@@ -40,10 +40,29 @@
     "totalCgp": "总成本毛利率",
     "arCapitalTakesUpCostSoftware": "软件资本成本",
     "productName": "产品名称",
-    "calcLevel": "计算层级",
-    "description": "描述",
-    "unit": "单位",
-    "category": "分类",
-    "businessCode": "业务代码"
+    "calcLevel": "测算层级",
+    "businessCode": "业务代码",
+    "saleScenceName": "销售场景",
+    "calModel": "测算模型",
+    "fullPrepayFlag": "全额预付标识",
+    "warrantyBuyoutFlag": "保修买断标识",
+    "signSubject": "签约主体编码",
+    "tradeTerm": "贸易条款",
+    "customerName": "客户名称",
+    "applyTypeName": "申请类型名称",
+    "naLevel": "NA级别",
+    "partsDealFlag": "是否部件报价",
+    "countryCode": "国家编码",
+    "currency": "货币",
+    "grossMargin": "毛利",
+    "approveLevelName": "商务级别",
+    "regionGrossProfit": "项目贡献毛利",
+    "regionGrossMargin": "项目贡献毛利率",
+    "calculateDate": "测算日期",
+    "projectName": "项目名称",
+    "serviceAppLevelName": "服务层级名称",
+    "capitalOccupation":"全额预付优惠率",
+    "onlineCalFlag":"是否线下测算",
+    "partCode":"部件编码"
   }
 }
