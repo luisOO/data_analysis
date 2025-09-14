@@ -728,6 +728,7 @@ class SubFactorDetailView:
         self.context_menu = tk.Menu(self.frame, tearoff=0)
         self.context_menu.add_command(label="复制行", command=self.copy_row_as_text)
         self.context_menu.add_command(label="复制为JSON", command=self.copy_row_as_json)
+        self.context_menu.add_command(label="复制为Markdown", command=self.copy_row_as_markdown)
         
         # 字段值复制菜单
         self.field_menu = tk.Menu(self.frame, tearoff=0)
@@ -890,6 +891,7 @@ class SubFactorDetailView:
                     combined_menu = tk.Menu(self.frame, tearoff=0)
                     combined_menu.add_command(label="复制行", command=self.copy_row_as_text)
                     combined_menu.add_command(label="复制为JSON", command=self.copy_row_as_json)
+                    combined_menu.add_command(label="复制为Markdown", command=self.copy_row_as_markdown)
                     
                     # 显示菜单
                     combined_menu.post(event.x_root, event.y_root)
@@ -901,6 +903,7 @@ class SubFactorDetailView:
                 combined_menu = tk.Menu(self.frame, tearoff=0)
                 combined_menu.add_command(label="复制行", command=self.copy_row_as_text)
                 combined_menu.add_command(label="复制为JSON", command=self.copy_row_as_json)
+                combined_menu.add_command(label="复制为Markdown", command=self.copy_row_as_markdown)
                 combined_menu.post(event.x_root, event.y_root)
             elif isinstance(event, int):
                 # 如果是整数，直接使用作为行索引
@@ -1113,6 +1116,90 @@ class SubFactorDetailView:
             print(f"已复制JSON数据到剪贴板: {json_str[:50]}...")
         except Exception as e:
             print(f"复制行为JSON时出错: {e}")
+            # 记录错误但不中断程序
+    
+    def copy_row_as_markdown(self):
+        """将选中的行复制为Markdown表格格式"""
+        print("开始执行复制为Markdown功能")
+        try:
+            # 首先检查是否有高亮的行
+            if hasattr(self, 'highlighted_row') and self.highlighted_row is not None:
+                row_index = self.highlighted_row
+            else:
+                # 获取当前选中的行（tksheet API）
+                selected_rows = self.data_table.get_selected_rows()
+                if not selected_rows:
+                    print("没有选中的行")
+                    # 尝试获取当前鼠标位置下的行
+                    if hasattr(self, 'current_cell') and self.current_cell:
+                        row_index = self.current_cell[0]
+                        # 高亮显示该行
+                        self.restore_row_colors()
+                        self.data_table.highlight_rows(rows=row_index, bg="#d0e8ff", fg="#000000")
+                        self.highlighted_row = row_index
+                    else:
+                        # 仍然没有选中行，显示提示信息
+                        if hasattr(self, 'search_tooltip'):
+                            self.search_tooltip.config(text="请先选择一行数据", foreground="#FF0000")
+                            # 2秒后恢复提示
+                            self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
+                        return
+                else:
+                    # 获取选中行的数据
+                    # 处理selected_rows可能是集合的情况
+                    if isinstance(selected_rows, set):
+                        row_index = list(selected_rows)[0]  # 使用第一个选中的行
+                    else:
+                        row_index = selected_rows[0]  # 使用第一个选中的行
+            
+            # 获取表头和行数据
+            headers = self.data_table.headers()
+            values = self.data_table.get_row_data(row_index)
+            
+            # 创建Markdown表格格式
+            markdown_lines = []
+            
+            # 添加表头行
+            header_line = "| " + " | ".join(str(header) for header in headers) + " |"
+            markdown_lines.append(header_line)
+            
+            # 添加分隔行
+            separator_line = "| " + " | ".join("---" for _ in headers) + " |"
+            markdown_lines.append(separator_line)
+            
+            # 添加数据行
+            # 处理值中的特殊字符，避免破坏Markdown表格格式
+            escaped_values = []
+            for value in values:
+                if value is None:
+                    escaped_values.append("")
+                else:
+                    # 转换为字符串并转义Markdown特殊字符
+                    str_value = str(value)
+                    # 转义管道符和换行符
+                    str_value = str_value.replace("|", "\\|").replace("\n", "<br>")
+                    escaped_values.append(str_value)
+            
+            data_line = "| " + " | ".join(escaped_values) + " |"
+            markdown_lines.append(data_line)
+            
+            # 合并所有行
+            markdown_str = "\n".join(markdown_lines)
+            
+            # 确保使用根窗口进行剪贴板操作
+            root = self.frame.winfo_toplevel()
+            root.clipboard_clear()
+            root.clipboard_append(markdown_str)
+            root.update()  # 确保更新剪贴板内容
+            
+            # 显示提示信息
+            if hasattr(self, 'search_tooltip'):
+                self.search_tooltip.config(text="已复制Markdown表格到剪贴板", foreground="#006600")
+                # 2秒后恢复提示
+                self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
+            print(f"已复制Markdown表格到剪贴板: {markdown_str[:50]}...")
+        except Exception as e:
+            print(f"复制行为Markdown时出错: {e}")
             # 记录错误但不中断程序
     
     def copy_cell_value(self, event):
