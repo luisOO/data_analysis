@@ -2,35 +2,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import logging
 import os
-from datetime import datetime
-from data_model import ConfigManager, DataManager
-from view import MainAppView
+from models import ConfigManager, DataManager
+from views import MainAppView
 from utils import DataUtils
+from .logging_setup import setup_logging
 
-# 配置日志系统
-def setup_logging():
-    """设置日志系统"""
-    # 创建logs目录
-    log_dir = 'logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    # 设置日志文件名（包含日期）
-    log_filename = os.path.join(log_dir, f'app_{datetime.now().strftime("%Y%m%d")}.log')
-    
-    # 配置日志格式
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_filename, encoding='utf-8'),
-            logging.StreamHandler()  # 同时输出到控制台
-        ]
-    )
-    
-    # 创建应用专用的logger
-    logger = logging.getLogger('CalcAnyApp')
-    return logger
 
 class AppController:
     def __init__(self):
@@ -39,7 +15,9 @@ class AppController:
         self.logger.info("应用程序启动")
         
         try:
-            self.config_manager = ConfigManager()
+            # 加载配置文件
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+            self.config_manager = ConfigManager(config_path)
             self.data_manager = DataManager(config_manager=self.config_manager)
             self.view = MainAppView(self)
             self.current_sub_factor = None
@@ -225,11 +203,15 @@ class AppController:
         if not hasattr(self, 'current_df') or self.current_df is None or self.current_df.empty:
             return
             
-        # 检查搜索文本是否与上次相同，如果相同则跳过
-        if hasattr(self, '_last_search_text') and self._last_search_text == search_text and hasattr(self, '_last_search_level') and self._last_search_level == level:
+        # 更严格的重复检查 - 包括搜索文本、层级和数据版本
+        current_data_hash = hash(str(self.current_df.values.tobytes())) if hasattr(self.current_df, 'values') else 0
+        search_key = f"{level}_{search_text}_{current_data_hash}"
+        
+        if hasattr(self, '_last_search_key') and self._last_search_key == search_key:
             return
             
-        # 保存当前搜索文本和层级
+        # 保存当前搜索键
+        self._last_search_key = search_key
         self._last_search_text = search_text
         self._last_search_level = level
             

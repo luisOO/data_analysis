@@ -1,202 +1,20 @@
 import json
-import pandas as pd
 import os
 import logging
-import gc
+import pandas as pd
 import psutil
+import gc
 from functools import lru_cache
-from utils import ValidationUtils, DataUtils, LoggingUtils
+from utils.validation_utils import ValidationUtils
 
-class ConfigManager:
-    def __init__(self, config_path='config.json'):
-        self.config = {}
-        self.config_path = config_path
-        self.logger = LoggingUtils.setup_logger(self.__class__.__name__)
-        self._load_config()
-    
-    def _load_config(self):
-        """加载配置文件，包含错误处理"""
-        try:
-            # 验证配置文件路径
-            ValidationUtils.validate_input(self.config_path, "配置文件路径", str)
-            
-            # 检查配置文件是否存在
-            if not os.path.exists(self.config_path):
-                raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
-            
-            # 检查文件是否可读
-            if not os.access(self.config_path, os.R_OK):
-                raise PermissionError(f"无法读取配置文件: {self.config_path}")
-            
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                self.config = json.load(f)
-                
-            # 验证配置文件的基本结构
-            self._validate_config()
-            
-            self.logger.info(f"配置文件加载成功: {self.config_path}，包含 {len(self.config)} 个配置项")
-            
-        except FileNotFoundError as e:
-            LoggingUtils.log_error_with_context(self.logger, e, "配置文件加载")
-            self._load_default_config()
-        except json.JSONDecodeError as e:
-            LoggingUtils.log_error_with_context(self.logger, e, "配置文件JSON解析")
-            self._load_default_config()
-        except PermissionError as e:
-            LoggingUtils.log_error_with_context(self.logger, e, "配置文件权限")
-            self._load_default_config()
-        except Exception as e:
-            LoggingUtils.log_error_with_context(self.logger, e, "配置文件加载未知错误")
-            self._load_default_config()
-    
-    def _validate_config(self):
-        """验证配置文件的基本结构"""
-        required_keys = ['document_info_fields', 'factor_categories', 'display_names', 'data_hierarchy_names']
-        
-        # 验证必需的键
-        missing_keys = [key for key in required_keys if key not in self.config]
-        if missing_keys:
-            self.logger.warning(f"配置文件缺少必需的键: {missing_keys}")
-        
-        # 验证factor_categories结构
-        self._validate_factor_categories()
-        
-        # 验证display_names结构
-        self._validate_display_names()
-        
-        # 验证data_hierarchy_names结构
-        self._validate_hierarchy_names()
-    
-    def _validate_factor_categories(self):
-        """验证因子分类配置结构"""
-        if 'factor_categories' not in self.config:
-            return
-            
-        factor_categories = self.config['factor_categories']
-        if not isinstance(factor_categories, dict):
-            self.logger.error("factor_categories必须是字典类型")
-            return
-            
-        for category_name, category_data in factor_categories.items():
-            if not isinstance(category_data, list):
-                self.logger.warning(f"分类'{category_name}'的数据应为列表格式")
-                continue
-                
-            for factor in category_data:
-                if not isinstance(factor, dict):
-                    self.logger.warning(f"因子配置应为字典格式: {factor}")
-                    continue
-                    
-                if 'name' not in factor:
-                    self.logger.warning(f"因子配置缺少name字段: {factor}")
-                    
-                # 验证basic_info是列表
-                if 'basic_info' in factor and not isinstance(factor['basic_info'], list):
-                    self.logger.warning(f"basic_info应为列表格式: {factor.get('name', 'unknown')}")
-    
-    def _validate_display_names(self):
-        """验证显示名称配置"""
-        if 'display_names' in self.config and not isinstance(self.config['display_names'], dict):
-            self.logger.error("display_names必须是字典类型")
-    
-    def _validate_hierarchy_names(self):
-        """验证层次名称配置"""
-        if 'data_hierarchy_names' in self.config and not isinstance(self.config['data_hierarchy_names'], dict):
-            self.logger.error("data_hierarchy_names必须是字典类型")
-    
-    def _load_default_config(self):
-        """加载默认配置"""
-        self.logger.info("使用默认配置")
-        self.config = {
-            'document_info_fields': ['businessCode', 'description', 'unit'],
-            'factor_categories': {
-                '基础因子': [
-                    {
-                        'name': '收入因子',
-                        'basic_info': ['businessCode', 'netSalesRevenue', 'description', 'unit', 'category'],
-                        'table_info': [['total', 'boq', 'model', 'part'], ['businessCode', 'netSalesRevenue', 'description']]
-                    },
-                    {
-                        'name': '成本因子',
-                        'basic_info': ['businessCode', 'totalCost', 'description', 'unit', 'category'],
-                        'table_info': [['total', 'boq', 'model', 'part'], ['businessCode', 'totalCost', 'description']]
-                    }
-                ]
-            },
-            'display_names': {
-                'businessCode': '业务编码',
-                'netSalesRevenue': '净销售收入',
-                'totalCost': '总成本',
-                'description': '描述',
-                'unit': '单位',
-                'category': '类别',
-                '收入因子': '收入因子',
-                '成本因子': '成本因子'
-            },
-            'data_hierarchy_names': {
-                'total': '总计',
-                'boq': '清单项',
-                'model': '模型构件',
-                'part': '零部件'
-            },
-            'enabled_hierarchy_levels': ['total', 'boq', 'model', 'part'],
-            'default_hierarchy_level': 'part'
-        }
-
-    def get_document_info_fields(self):
-        return self.config.get('document_info_fields', [])
-
-    def get_factor_categories(self):
-        return self.config.get('factor_categories', {})
-
-    def get_sub_factor_basic_info(self, factor_name=None):
-        # 返回配置中的basic_info字段列表
-        if factor_name:
-            factor_categories = self.config.get('factor_categories', {})
-            for category, factors in factor_categories.items():
-                for factor in factors:
-                    if factor.get('name') == factor_name:
-                        return factor.get('basic_info', [])
-        # 否则返回空列表
-        return []
-
-    def get_data_table_columns(self, level, factor_name=None):
-        # 如果提供了因子名称，在因子分类中查找
-        if factor_name:
-            factor_categories = self.config.get('factor_categories', {})
-            for category, factors in factor_categories.items():
-                for factor in factors:
-                    if factor.get('name') == factor_name:
-                        table_info = factor.get('table_info', {})
-                        return table_info.get(level, [])
-        # 否则返回空列表
-        return []
-        
-    def get_display_name(self, name):
-        """获取任意字段或因子的显示名称"""
-        return self.config.get('display_names', {}).get(name, name)
-        
-    # 移除重复方法，统一使用get_display_name方法
-        
-    def get_data_hierarchy_name(self, level):
-        """获取数据层次的显示名称"""
-        return self.config.get('data_hierarchy_names', {}).get(level, level)
-    
-    def get_enabled_hierarchy_levels(self):
-        """获取启用的数据层次级别"""
-        return self.config.get('enabled_hierarchy_levels', ['total', 'boq', 'model', 'part'])
-    
-    def get_default_hierarchy_level(self):
-        """获取默认的数据层次级别"""
-        return self.config.get('default_hierarchy_level', 'total')
 
 class DataManager:
-    def __init__(self, data_path=None, config_manager=None):
+    """数据管理器，负责加载和管理数据"""
+    
+    def __init__(self, config_manager=None):
         self.data = None
-        self.data_path = data_path
+        self.data_path = None
         self.config_manager = config_manager
-        if data_path:
-            self.load_data(data_path)
     
     def _validate_input(self, value, expected_type, name="参数"):
         """通用输入验证方法"""
