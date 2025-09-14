@@ -12,7 +12,7 @@
 
 - **数据导入**: 支持用户选择并导入JSON格式的数据文件。
 - **搜索过滤**: 支持对数据表格内容进行搜索过滤，实时显示匹配结果。
-- **数据复制**: 支持复制表格单元格值、整行数据为JSON格式，以及字段值的复制功能。
+- **数据复制**: 支持复制表格单元格值、整行数据为JSON格式和Markdown格式，以及字段值的复制功能。
 - **可配置UI**:
     - **单据基本信息**: 动态展示JSON文件顶层字段，展示哪些字段应由配置文件决定，支持配置字段对应的中文名称。
     - **因子分类**: 动态展示不同的因子类别（如成本、收入、费用），类别本身可配置。
@@ -119,10 +119,10 @@ calc-any/
     - `display_basic_info(data, display_names)`: 显示子因子的基本信息，使用配置的中文名称，支持右键菜单和双击复制字段值。
     - `setup_data_hierarchy_selection()`: 设置数据层次单选按钮，显示配置的中文名称，优先选择"total"层次。
     - `on_hierarchy_level_select(level)`: 处理数据层次单选按钮的选择事件，并重置搜索框。
-    - `display_data_table(dataframe, column_names)`: 使用`ttk.Treeview`作为表格，展示Pandas DataFrame的内容，列名显示为配置的中文名称，支持右键菜单复制行为JSON和双击复制单元格值。
+    - `display_data_table(dataframe, column_names)`: 使用`ttk.Treeview`作为表格，展示Pandas DataFrame的内容，列名显示为配置的中文名称，支持右键菜单复制行为JSON和Markdown格式，以及双击复制单元格值。
     - `on_search_change()`, `on_search_button_click()`, `on_clear_search()`: 处理搜索框内容变化、搜索按钮点击和清除按钮点击事件。
     - `apply_search_filter()`: 应用搜索过滤，通知控制器过滤数据。
-    - `create_context_menu()`, `show_table_context_menu()`, `copy_row_as_json()`, `copy_cell_value()`: 创建和处理表格右键菜单，实现复制功能。
+    - `create_context_menu()`, `show_table_context_menu()`, `copy_row_as_json()`, `copy_row_as_markdown()`, `copy_cell_value()`: 创建和处理表格右键菜单，实现多种格式的复制功能。
     - `show_field_menu()`, `copy_field_value()`: 处理字段值的右键菜单和复制功能。
 
 #### `controller.py` (Controller)
@@ -158,7 +158,7 @@ calc-any/
     - 顶部是子因子的`Key: Value`基本信息，支持右键菜单和双击复制字段值。
     - 中间是数据层次的单选按钮组，优先选择"total"层次。
     - 搜索过滤区域，包含搜索框、搜索按钮和清除按钮，支持实时搜索。
-    - 底部是数据表格的`ttk.Treeview`，支持右键菜单复制行为JSON和双击复制单元格值。
+    - 底部是数据表格的`ttk.Treeview`，支持右键菜单复制行为JSON和Markdown格式，以及双击复制单元格值。
 
 ## 5. 代码质量与系统健壮性
 
@@ -234,4 +234,32 @@ calc-any/
     - **功能实现**: refresh_view方法包含配置重新加载、当前子因子数据刷新、单据基本信息更新等完整流程
     - **错误处理**: 添加完善的异常处理和日志记录，确保刷新操作的稳定性
     - **用户体验**: 菜单中的"刷新"功能现在可以正常工作，提升了应用程序的可用性
-22. **联调、测试和优化**: 完善功能，修复Bug，优化性能。
+22. **【已完成】修复启动时表格字段显示问题**: 解决程序启动时数据表格不显示配置字段和中文名称的问题：
+    - **问题分析**: 启动时DataFrame为空，导致display_columns映射为空，表格无法显示配置的字段
+    - **视图层优化**: 修改display_data_table方法，支持在无数据时显示配置的列标题
+    - **控制器优化**: 修改列名映射逻辑，使用配置的columns而不是df.columns生成显示名称
+    - **用户体验**: 启动时即可看到表格结构和中文字段名，无需等待数据加载
+    - **功能完善**: 确保空数据和有数据状态下的一致性显示效果
+23. **【已完成】优化基本信息字段布局**: 改进字段显示密度和布局效果：
+    - **布局优化**: 
+      - 将单据基本信息区域从每行4个字段调整为每行6个字段，提高信息密度
+      - 统一子因子基本信息布局，与单据基本信息保持一致，采用每行6个字段的Grid布局
+    - **技术实现**: 
+      - 修改_create_field_display_layout方法中的fields_per_row参数和Grid布局配置
+      - 重构SubFactorDetailView类的display_basic_info方法，使用与DocumentInfoView一致的Grid布局
+      - 移除子因子基本信息区域的固定高度限制，改为自适应内容高度
+    - **布局修复**: 解决Canvas滚动容器与Grid布局混用导致的字段显示问题
+    - **代码简化**: 移除不必要的滚动容器，统一使用Grid布局，提高布局稳定性
+    - **用户体验**: 在相同空间内显示更多字段信息，保持良好的对齐效果和视觉体验，统一界面风格
+24. **【已完成】添加Markdown格式复制功能**: 扩展表格右键菜单复制功能：
+    - **功能增强**: 在原有"复制行"和"复制为JSON"基础上，新增"复制为Markdown"选项
+    - **实现方案**: 
+      - 在SubFactorDetailView类中添加copy_row_as_markdown方法
+      - 实现表格数据到Markdown格式的转换，包括表头和数据行
+      - 修复show_table_context_menu方法中临时菜单缺少Markdown选项的问题
+    - **技术细节**: 
+      - 支持Markdown表格格式输出，包含表头分隔线和数据对齐
+      - 处理空值和特殊字符，确保Markdown格式的正确性
+      - 添加调试日志以便问题排查和功能验证
+    - **用户体验**: 用户可以直接将表格数据复制为Markdown格式，便于在文档、Wiki或其他支持Markdown的平台中使用
+25. **联调、测试和优化**: 完善功能，修复Bug，优化性能。
