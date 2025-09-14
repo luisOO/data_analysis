@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from data_model import ConfigManager, DataManager
 from view import MainAppView
+from utils import DataUtils
 
 # 配置日志系统
 def setup_logging():
@@ -52,6 +53,14 @@ class AppController:
         
         # 初始化因子分类框架
         self.setup_initial_factor_tabs()
+    
+    def _convert_to_display_info(self, data_dict):
+        """将数据字典转换为显示信息字典的通用方法"""
+        return DataUtils.convert_to_display_info(data_dict, self.config_manager)
+    
+    def _convert_to_display_columns(self, columns):
+        """将列名转换为显示列名的通用方法"""
+        return DataUtils.convert_to_display_columns(columns, self.config_manager)
 
     def setup_initial_factor_tabs(self):
         """根据配置初始化因子分类框架"""
@@ -130,13 +139,8 @@ class AppController:
             doc_info = self.data_manager.get_document_info(doc_info_fields)
             self.logger.info(f"文档信息: {doc_info}")
             
-            # 获取字段显示名称
-            display_info = {}
-            for field, value in doc_info.items():
-                self.logger.info(f"处理字段: {field}, 值: {value}")
-                display_name = self.config_manager.get_display_name(field)
-                display_info[display_name] = value
-            
+            # 使用通用方法转换显示信息
+            display_info = self._convert_to_display_info(doc_info)
             self.logger.info(f"显示信息: {display_info}")
             self.view.doc_info_view.display_info(display_info)
 
@@ -164,11 +168,8 @@ class AppController:
         # 从实际数据中获取basic info
         sub_factor_basic_info = self.data_manager.get_basic_info_from_data(sub_factor_name, basic_info_fields)
         
-        # 获取字段显示名称
-        display_info = {}
-        for field, value in sub_factor_basic_info.items():
-            display_name = self.config_manager.get_display_name(field)
-            display_info[display_name] = value
+        # 使用通用方法转换显示信息
+        display_info = self._convert_to_display_info(sub_factor_basic_info)
         
         # 更新右侧详情视图
         if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
@@ -190,7 +191,13 @@ class AppController:
         
         try:
             root_node = self.data_manager.get_calculate_item_vo()
+            self.logger.info(f"获取到的root_node: {type(root_node)}, 是否为None: {root_node is None}")
+            if root_node is None:
+                self.logger.error("root_node为None，数据可能未正确加载")
+                return
+            self.logger.info(f"准备调用get_all_nodes_for_level，参数: level={level}")
             nodes_at_level = self.data_manager.get_all_nodes_for_level(root_node, level)
+            self.logger.info(f"get_all_nodes_for_level返回结果: {len(nodes_at_level) if nodes_at_level else 0}个节点")
             
             # 使用当前选中的因子名称获取列配置
             columns = self.config_manager.get_data_table_columns(level, self.current_sub_factor)
@@ -199,12 +206,8 @@ class AppController:
             # 保存当前数据帧，用于搜索过滤
             self.current_df = df
             
-            # 将列名转换为显示名称
-            display_columns = {}
-            # 使用配置的列来生成显示名称映射，而不是df.columns
-            for col in columns:
-                display_name = self.config_manager.get_display_name(col)
-                display_columns[col] = display_name
+            # 使用通用方法转换显示列名
+            display_columns = self._convert_to_display_columns(columns)
             
             # 更新右侧详情视图的数据表格
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
@@ -233,11 +236,8 @@ class AppController:
         try:
             # 如果搜索文本为空，显示所有数据
             if not search_text:
-                # 将列名转换为显示名称
-                display_columns = {}
-                for col in self.current_df.columns:
-                    display_name = self.config_manager.get_display_name(col)
-                    display_columns[col] = display_name
+                # 使用通用方法转换显示列名
+                display_columns = self._convert_to_display_columns(self.current_df.columns)
                     
                 # 更新表格显示
                 if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
@@ -261,11 +261,8 @@ class AppController:
                     
             filtered_df = filtered_df[mask]
             
-            # 将列名转换为显示名称
-            display_columns = {}
-            for col in filtered_df.columns:
-                display_name = self.config_manager.get_display_name(col)
-                display_columns[col] = display_name
+            # 使用通用方法转换显示列名
+            display_columns = self._convert_to_display_columns(filtered_df.columns)
                 
             # 更新表格显示
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:

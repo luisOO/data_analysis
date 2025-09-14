@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 import pandas as pd
 from config_manager_ui import ConfigManagerUI
 from tksheet import Sheet  # 导入tksheet组件
+from utils import ClipboardUtils
 
 class MainAppView(tk.Tk):
     def __init__(self, controller):
@@ -607,8 +608,41 @@ class FactorView:
             # 设置数据层次选择框架
             self.detail_view.setup_data_hierarchy_selection()
             
+            # 初始化空的数据表格，显示配置的字段
+            self._initialize_empty_data_table(sub_factor_name)
+            
         except Exception as e:
             self.controller.logger.error(f"设置子因子框架失败: {e}")
+    
+    def _initialize_empty_data_table(self, sub_factor_name):
+        """初始化空的数据表格，显示配置的字段"""
+        try:
+            # 获取默认层次
+            default_level = self._get_default_hierarchy_level()
+            
+            if default_level:
+                # 获取该层次和子因子的列配置
+                columns = self.controller.config_manager.get_data_table_columns(default_level, sub_factor_name)
+                if columns:
+                    # 创建空的DataFrame并显示空表格但包含配置的列标题
+                    empty_df = pd.DataFrame()
+                    self.detail_view.display_data_table(empty_df, None, columns)
+                else:
+                    self.controller.logger.warning(f"未找到子因子 '{sub_factor_name}' 在层次 '{default_level}' 的列配置")
+            else:
+                self.controller.logger.warning("无法获取默认层次，跳过表格初始化")
+                    
+        except Exception as e:
+            self.controller.logger.error(f"初始化空数据表格失败: {e}")
+    
+    def _get_default_hierarchy_level(self):
+        """获取默认层次级别的公共方法"""
+        default_level = self.controller.config_manager.get_default_hierarchy_level()
+        if not default_level:
+            hierarchy_levels = self.controller.data_manager.get_hierarchy_levels()
+            if hierarchy_levels:
+                default_level = hierarchy_levels[0]
+        return default_level
 
 # SubFactorView类已被集成到FactorView中，不再需要单独的类
 
@@ -887,24 +921,13 @@ class SubFactorDetailView:
                     print(f"选中的行: {selected_rows}")
                     
                     # 显示右键菜单
-                    # 创建临时菜单
-                    combined_menu = tk.Menu(self.frame, tearoff=0)
-                    combined_menu.add_command(label="复制行", command=self.copy_row_as_text)
-                    combined_menu.add_command(label="复制为JSON", command=self.copy_row_as_json)
-                    combined_menu.add_command(label="复制为Markdown", command=self.copy_row_as_markdown)
-                    
-                    # 显示菜单
-                    combined_menu.post(event.x_root, event.y_root)
+                    self._show_context_menu(event.x_root, event.y_root)
                     return
                 except Exception as e:
                     print(f"显示表格右键菜单出错: {e}")
                     
                 # 如果上面的方法都失败了，显示菜单
-                combined_menu = tk.Menu(self.frame, tearoff=0)
-                combined_menu.add_command(label="复制行", command=self.copy_row_as_text)
-                combined_menu.add_command(label="复制为JSON", command=self.copy_row_as_json)
-                combined_menu.add_command(label="复制为Markdown", command=self.copy_row_as_markdown)
-                combined_menu.post(event.x_root, event.y_root)
+                self._show_context_menu(event.x_root, event.y_root)
             elif isinstance(event, int):
                 # 如果是整数，直接使用作为行索引
                 row = event
@@ -940,38 +963,68 @@ class SubFactorDetailView:
             print(f"显示菜单时出错: {e}")
             # 记录错误但不中断程序
     
+    def _get_selected_row_index(self):
+        """获取当前选中的行索引，统一处理逻辑"""
+        # 首先检查是否有高亮的行
+        if hasattr(self, 'highlighted_row') and self.highlighted_row is not None:
+            return self.highlighted_row
+        
+        # 获取当前选中的行（tksheet API）
+        selected_rows = self.data_table.get_selected_rows()
+        if not selected_rows:
+            print("没有选中的行")
+            # 尝试获取当前鼠标位置下的行
+            if hasattr(self, 'current_cell') and self.current_cell:
+                row_index = self.current_cell[0]
+                # 高亮显示该行
+                self.restore_row_colors()
+                self.data_table.highlight_rows(rows=row_index, bg="#d0e8ff", fg="#000000")
+                self.highlighted_row = row_index
+                return row_index
+            else:
+                # 仍然没有选中行，显示提示信息
+                self._show_tooltip_message("请先选择一行数据", "#FF0000")
+                return None
+        else:
+            # 获取选中行的数据
+            # 处理selected_rows可能是集合的情况
+            if isinstance(selected_rows, set):
+                return list(selected_rows)[0]  # 使用第一个选中的行
+            else:
+                return selected_rows[0]  # 使用第一个选中的行
+    
+    def _show_tooltip_message(self, message, color="#006600", duration=2000):
+        """显示提示信息的通用方法"""
+        if hasattr(self, 'search_tooltip'):
+            self.search_tooltip.config(text=message, foreground=color)
+            # 指定时间后恢复提示
+            self.frame.after(duration, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
+    
+    def _copy_to_clipboard(self, content, success_message):
+        """复制内容到剪贴板的通用方法"""
+        success = ClipboardUtils.copy_to_clipboard(content, success_message)
+        if success:
+            self._show_tooltip_message(success_message)
+            print(f"{success_message}: {str(content)[:50]}...")
+        return success
+    
+    def _show_context_menu(self, x, y):
+        """显示右键菜单的通用方法"""
+        try:
+            combined_menu = tk.Menu(self.frame, tearoff=0)
+            combined_menu.add_command(label="复制行", command=self.copy_row_as_text)
+            combined_menu.add_command(label="复制为JSON", command=self.copy_row_as_json)
+            combined_menu.add_command(label="复制为Markdown", command=self.copy_row_as_markdown)
+            combined_menu.post(x, y)
+        except Exception as e:
+            print(f"显示右键菜单时出错: {e}")
+    
     def copy_row_as_text(self):
         """将选中的行复制为文本格式"""
         try:
-            # 首先检查是否有高亮的行
-            if hasattr(self, 'highlighted_row') and self.highlighted_row is not None:
-                row_index = self.highlighted_row
-            else:
-                # 获取当前选中的行（tksheet API）
-                selected_rows = self.data_table.get_selected_rows()
-                if not selected_rows:
-                    print("没有选中的行")
-                    # 尝试获取当前鼠标位置下的行
-                    if hasattr(self, 'current_cell') and self.current_cell:
-                        row_index = self.current_cell[0]
-                        # 高亮显示该行
-                        self.restore_row_colors()
-                        self.data_table.highlight_rows(rows=row_index, bg="#d0e8ff", fg="#000000")
-                        self.highlighted_row = row_index
-                    else:
-                        # 仍然没有选中行，显示提示信息
-                        if hasattr(self, 'search_tooltip'):
-                            self.search_tooltip.config(text="请先选择一行数据", foreground="#FF0000")
-                            # 2秒后恢复提示
-                            self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
-                        return
-                else:
-                    # 获取选中行的数据
-                    # 处理selected_rows可能是集合的情况
-                    if isinstance(selected_rows, set):
-                        row_index = list(selected_rows)[0]  # 使用第一个选中的行
-                    else:
-                        row_index = selected_rows[0]  # 使用第一个选中的行
+            row_index = self._get_selected_row_index()
+            if row_index is None:
+                return
             
             # 获取表头和行数据
             headers = self.data_table.headers()
@@ -989,18 +1042,8 @@ class SubFactorDetailView:
             if row_text.endswith("\n"):
                 row_text = row_text[:-1]
             
-            # 确保使用根窗口进行剪贴板操作
-            root = self.frame.winfo_toplevel()
-            root.clipboard_clear()
-            root.clipboard_append(row_text)
-            root.update()  # 确保更新剪贴板内容
-            
-            # 显示提示信息
-            if hasattr(self, 'search_tooltip'):
-                self.search_tooltip.config(text="已复制行数据到剪贴板", foreground="#006600")
-                # 2秒后恢复提示
-                self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
-            print(f"已复制行数据到剪贴板: {row_text[:50]}...")
+            # 使用通用复制方法
+            self._copy_to_clipboard(row_text, "已复制行数据到剪贴板")
         except Exception as e:
             print(f"复制行为文本时出错: {e}")
             # 记录错误但不中断程序
@@ -1008,13 +1051,9 @@ class SubFactorDetailView:
     def copy_row_as_email(self):
         """将选中的行复制为邮件格式"""
         try:
-            # 获取当前选中的行（tksheet API）
-            selected_rows = self.data_table.get_selected_rows()
-            if not selected_rows:
+            row_index = self._get_selected_row_index()
+            if row_index is None:
                 return
-                
-            # 获取选中行的数据
-            row_index = selected_rows[0]  # 使用第一个选中的行
             
             # 获取表头和行数据
             headers = self.data_table.headers()
@@ -1037,15 +1076,8 @@ class SubFactorDetailView:
             
             html += "</table>"
             
-            # 复制到剪贴板
-            self.frame.clipboard_clear()
-            self.frame.clipboard_append(html)
-            
-            # 显示提示信息
-            if hasattr(self, 'search_tooltip'):
-                self.search_tooltip.config(text="已复制为邮件HTML格式到剪贴板", foreground="#006600")
-                # 2秒后恢复提示
-                self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
+            # 使用通用复制方法
+            self._copy_to_clipboard(html, "已复制为邮件HTML格式到剪贴板")
         except Exception as e:
             print(f"复制行为邮件格式时出错: {e}")
             # 记录错误但不中断程序
@@ -1053,35 +1085,10 @@ class SubFactorDetailView:
     def copy_row_as_json(self):
         """将选中的行复制为JSON格式"""
         try:
-            # 首先检查是否有高亮的行
-            if hasattr(self, 'highlighted_row') and self.highlighted_row is not None:
-                row_index = self.highlighted_row
-            else:
-                # 获取当前选中的行（tksheet API）
-                selected_rows = self.data_table.get_selected_rows()
-                if not selected_rows:
-                    print("没有选中的行")
-                    # 尝试获取当前鼠标位置下的行
-                    if hasattr(self, 'current_cell') and self.current_cell:
-                        row_index = self.current_cell[0]
-                        # 高亮显示该行
-                        self.restore_row_colors()
-                        self.data_table.highlight_rows(rows=row_index, bg="#d0e8ff", fg="#000000")
-                        self.highlighted_row = row_index
-                    else:
-                        # 仍然没有选中行，显示提示信息
-                        if hasattr(self, 'search_tooltip'):
-                            self.search_tooltip.config(text="请先选择一行数据", foreground="#FF0000")
-                            # 2秒后恢复提示
-                            self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
-                        return
-                else:
-                    # 获取选中行的数据
-                    # 处理selected_rows可能是集合的情况
-                    if isinstance(selected_rows, set):
-                        row_index = list(selected_rows)[0]  # 使用第一个选中的行
-                    else:
-                        row_index = selected_rows[0]  # 使用第一个选中的行
+            row_index = self._get_selected_row_index()
+            if row_index is None:
+                return
+                
             row_data = {}
             
             # 获取表头和行数据
@@ -1102,18 +1109,8 @@ class SubFactorDetailView:
             import json
             json_str = json.dumps(row_data, ensure_ascii=False, indent=2)
             
-            # 确保使用根窗口进行剪贴板操作
-            root = self.frame.winfo_toplevel()
-            root.clipboard_clear()
-            root.clipboard_append(json_str)
-            root.update()  # 确保更新剪贴板内容
-            
-            # 显示提示信息
-            if hasattr(self, 'search_tooltip'):
-                self.search_tooltip.config(text="已复制JSON数据到剪贴板", foreground="#006600")
-                # 2秒后恢复提示
-                self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
-            print(f"已复制JSON数据到剪贴板: {json_str[:50]}...")
+            # 使用通用复制方法
+            self._copy_to_clipboard(json_str, "已复制JSON数据到剪贴板")
         except Exception as e:
             print(f"复制行为JSON时出错: {e}")
             # 记录错误但不中断程序
@@ -1122,35 +1119,9 @@ class SubFactorDetailView:
         """将选中的行复制为Markdown表格格式"""
         print("开始执行复制为Markdown功能")
         try:
-            # 首先检查是否有高亮的行
-            if hasattr(self, 'highlighted_row') and self.highlighted_row is not None:
-                row_index = self.highlighted_row
-            else:
-                # 获取当前选中的行（tksheet API）
-                selected_rows = self.data_table.get_selected_rows()
-                if not selected_rows:
-                    print("没有选中的行")
-                    # 尝试获取当前鼠标位置下的行
-                    if hasattr(self, 'current_cell') and self.current_cell:
-                        row_index = self.current_cell[0]
-                        # 高亮显示该行
-                        self.restore_row_colors()
-                        self.data_table.highlight_rows(rows=row_index, bg="#d0e8ff", fg="#000000")
-                        self.highlighted_row = row_index
-                    else:
-                        # 仍然没有选中行，显示提示信息
-                        if hasattr(self, 'search_tooltip'):
-                            self.search_tooltip.config(text="请先选择一行数据", foreground="#FF0000")
-                            # 2秒后恢复提示
-                            self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
-                        return
-                else:
-                    # 获取选中行的数据
-                    # 处理selected_rows可能是集合的情况
-                    if isinstance(selected_rows, set):
-                        row_index = list(selected_rows)[0]  # 使用第一个选中的行
-                    else:
-                        row_index = selected_rows[0]  # 使用第一个选中的行
+            row_index = self._get_selected_row_index()
+            if row_index is None:
+                return
             
             # 获取表头和行数据
             headers = self.data_table.headers()
@@ -1186,18 +1157,8 @@ class SubFactorDetailView:
             # 合并所有行
             markdown_str = "\n".join(markdown_lines)
             
-            # 确保使用根窗口进行剪贴板操作
-            root = self.frame.winfo_toplevel()
-            root.clipboard_clear()
-            root.clipboard_append(markdown_str)
-            root.update()  # 确保更新剪贴板内容
-            
-            # 显示提示信息
-            if hasattr(self, 'search_tooltip'):
-                self.search_tooltip.config(text="已复制Markdown表格到剪贴板", foreground="#006600")
-                # 2秒后恢复提示
-                self.frame.after(2000, lambda: self.search_tooltip.config(text="实时搜索", foreground="#333333"))
-            print(f"已复制Markdown表格到剪贴板: {markdown_str[:50]}...")
+            # 使用通用复制方法
+            self._copy_to_clipboard(markdown_str, "已复制Markdown表格到剪贴板")
         except Exception as e:
             print(f"复制行为Markdown时出错: {e}")
             # 记录错误但不中断程序
@@ -1382,13 +1343,15 @@ class SubFactorDetailView:
             self.hierarchy_radios[level] = radio
             
         # 默认选择配置的层次
-        default_level = self.controller.config_manager.get_default_hierarchy_level()
-        if hierarchy_levels and default_level in hierarchy_levels:
-            self.hierarchy_var.set(default_level)
-            self.on_hierarchy_level_select(default_level)
-        elif hierarchy_levels:
-            self.hierarchy_var.set(hierarchy_levels[0])
-            self.on_hierarchy_level_select(hierarchy_levels[0])
+        if hierarchy_levels:
+            default_level = self.controller.config_manager.get_default_hierarchy_level()
+            if default_level and default_level in hierarchy_levels:
+                selected_level = default_level
+            else:
+                selected_level = hierarchy_levels[0]
+            
+            self.hierarchy_var.set(selected_level)
+            self.on_hierarchy_level_select(selected_level)
     
     def on_hierarchy_level_select(self, level):
         """当用户选择数据层次时触发"""
@@ -1485,44 +1448,9 @@ class SubFactorDetailView:
         if table_width <= 0:  # 如果宽度无效，使用默认宽度
             table_width = 800
         
-        # 计算每列的基础宽度
-        col_widths = []
-        for col_idx, col in enumerate(columns_to_show):
-            # 基础宽度 - 确保标题能完整显示
-            header_text = headers[col_idx] if col_idx < len(headers) else col
-            max_width = len(header_text) * 10 + 30  # 增加一些额外空间
-            
-            # 如果有数据，根据内容调整列宽
-            if not df.empty and col in df.columns:
-                for i, value in enumerate(df[col]):
-                    if i > 100:  # 限制检查的行数以提高性能
-                        break
-                    if pd.notna(value):  # 确保值不是NaN
-                        str_value = str(value)
-                        width = len(str_value) * 8 + 20
-                        if width > max_width:
-                            max_width = width
-            
-            # 限制最大宽度
-            if max_width > 300:
-                max_width = 300
-            # 确保最小宽度
-            if max_width < 80:
-                max_width = 80
-                
-            col_widths.append(max_width)
-        
-        # 计算总宽度和调整系数
-        total_width = sum(col_widths)
-        if total_width < table_width and len(col_widths) > 0:
-            # 如果总宽度小于表格宽度，按比例增加每列宽度
-            ratio = table_width / total_width
-            col_widths = [int(w * ratio) for w in col_widths]
-        
-        # 应用列宽
-        for col_idx, width in enumerate(col_widths):
-            if col_idx < len(columns_to_show):  # 确保列索引有效
-                self.data_table.column_width(column=col_idx, width=width)
+        # 计算并应用列宽
+        col_widths = self._calculate_column_widths(columns_to_show, headers, df, table_width)
+        self._apply_column_widths(col_widths)
             
         # 确保在窗口调整大小时重新计算列宽
         def on_table_configure(event):
@@ -1558,6 +1486,46 @@ class SubFactorDetailView:
         
         # 绑定排序事件
         self.data_table.extra_bindings(["column_select"], func=self.on_column_select)
+    
+    def _calculate_column_widths(self, columns_to_show, headers, df, table_width):
+        """计算列宽度"""
+        col_widths = []
+        for col_idx, col in enumerate(columns_to_show):
+            # 基础宽度 - 确保标题能完整显示
+            header_text = headers[col_idx] if col_idx < len(headers) else col
+            max_width = len(header_text) * 10 + 30  # 增加一些额外空间
+            
+            # 如果有数据，根据内容调整列宽
+            if not df.empty and col in df.columns:
+                # 限制检查的行数以提高性能，使用采样方式
+                sample_size = min(100, len(df))
+                sample_data = df[col].head(sample_size) if len(df) > sample_size else df[col]
+                
+                for value in sample_data:
+                    if pd.notna(value):  # 确保值不是NaN
+                        str_value = str(value)
+                        width = len(str_value) * 8 + 20
+                        if width > max_width:
+                            max_width = width
+            
+            # 限制最大宽度和确保最小宽度
+            max_width = max(80, min(max_width, 300))
+            col_widths.append(max_width)
+        
+        # 计算总宽度和调整系数
+        total_width = sum(col_widths)
+        if total_width < table_width and len(col_widths) > 0:
+            # 如果总宽度小于表格宽度，按比例增加每列宽度
+            ratio = table_width / total_width
+            col_widths = [int(w * ratio) for w in col_widths]
+        
+        return col_widths
+    
+    def _apply_column_widths(self, col_widths):
+        """应用列宽度"""
+        for col_idx, width in enumerate(col_widths):
+            if col_idx < len(col_widths):  # 确保列索引有效
+                self.data_table.column_width(column=col_idx, width=width)
             
     def on_column_select(self, event):
         """处理列选择事件，用于排序"""

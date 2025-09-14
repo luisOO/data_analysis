@@ -5,16 +5,21 @@ import logging
 import gc
 import psutil
 from functools import lru_cache
+from utils import ValidationUtils, DataUtils, LoggingUtils
 
 class ConfigManager:
     def __init__(self, config_path='config.json'):
         self.config = {}
         self.config_path = config_path
+        self.logger = LoggingUtils.setup_logger(self.__class__.__name__)
         self._load_config()
     
     def _load_config(self):
         """加载配置文件，包含错误处理"""
         try:
+            # 验证配置文件路径
+            ValidationUtils.validate_input(self.config_path, "配置文件路径", str)
+            
             # 检查配置文件是否存在
             if not os.path.exists(self.config_path):
                 raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
@@ -29,45 +34,79 @@ class ConfigManager:
             # 验证配置文件的基本结构
             self._validate_config()
             
-            logging.info(f"配置文件加载成功: {self.config_path}，包含 {len(self.config)} 个配置项")
+            self.logger.info(f"配置文件加载成功: {self.config_path}，包含 {len(self.config)} 个配置项")
             
         except FileNotFoundError as e:
-            logging.error(f"配置文件加载失败: {e}")
+            LoggingUtils.log_error_with_context(self.logger, e, "配置文件加载")
             self._load_default_config()
         except json.JSONDecodeError as e:
-            logging.error(f"配置文件JSON格式错误: {e}")
+            LoggingUtils.log_error_with_context(self.logger, e, "配置文件JSON解析")
             self._load_default_config()
         except PermissionError as e:
-            logging.error(f"配置文件权限错误: {e}")
+            LoggingUtils.log_error_with_context(self.logger, e, "配置文件权限")
             self._load_default_config()
         except Exception as e:
-            logging.error(f"配置文件加载时发生未知错误: {e}")
+            LoggingUtils.log_error_with_context(self.logger, e, "配置文件加载未知错误")
             self._load_default_config()
     
     def _validate_config(self):
         """验证配置文件的基本结构"""
         required_keys = ['document_info_fields', 'factor_categories', 'display_names', 'data_hierarchy_names']
-        for key in required_keys:
-            if key not in self.config:
-                logging.warning(f"配置文件缺少必需的键: {key}")
+        
+        # 验证必需的键
+        missing_keys = [key for key in required_keys if key not in self.config]
+        if missing_keys:
+            self.logger.warning(f"配置文件缺少必需的键: {missing_keys}")
         
         # 验证factor_categories结构
-        if 'factor_categories' in self.config:
-            factor_categories = self.config['factor_categories']
-            if isinstance(factor_categories, dict):
-                for category_name, category_data in factor_categories.items():
-                    if isinstance(category_data, list):
-                        # 新格式：数组结构
-                        for factor in category_data:
-                            if not isinstance(factor, dict) or 'name' not in factor:
-                                logging.warning(f"因子配置格式错误: {factor}")
-                            # 验证basic_info是列表
-                            if 'basic_info' in factor and not isinstance(factor['basic_info'], list):
-                                logging.warning(f"basic_info应为列表格式: {factor['name']}")
+        self._validate_factor_categories()
+        
+        # 验证display_names结构
+        self._validate_display_names()
+        
+        # 验证data_hierarchy_names结构
+        self._validate_hierarchy_names()
+    
+    def _validate_factor_categories(self):
+        """验证因子分类配置结构"""
+        if 'factor_categories' not in self.config:
+            return
+            
+        factor_categories = self.config['factor_categories']
+        if not isinstance(factor_categories, dict):
+            self.logger.error("factor_categories必须是字典类型")
+            return
+            
+        for category_name, category_data in factor_categories.items():
+            if not isinstance(category_data, list):
+                self.logger.warning(f"分类'{category_name}'的数据应为列表格式")
+                continue
+                
+            for factor in category_data:
+                if not isinstance(factor, dict):
+                    self.logger.warning(f"因子配置应为字典格式: {factor}")
+                    continue
+                    
+                if 'name' not in factor:
+                    self.logger.warning(f"因子配置缺少name字段: {factor}")
+                    
+                # 验证basic_info是列表
+                if 'basic_info' in factor and not isinstance(factor['basic_info'], list):
+                    self.logger.warning(f"basic_info应为列表格式: {factor.get('name', 'unknown')}")
+    
+    def _validate_display_names(self):
+        """验证显示名称配置"""
+        if 'display_names' in self.config and not isinstance(self.config['display_names'], dict):
+            self.logger.error("display_names必须是字典类型")
+    
+    def _validate_hierarchy_names(self):
+        """验证层次名称配置"""
+        if 'data_hierarchy_names' in self.config and not isinstance(self.config['data_hierarchy_names'], dict):
+            self.logger.error("data_hierarchy_names必须是字典类型")
     
     def _load_default_config(self):
         """加载默认配置"""
-        logging.info("使用默认配置")
+        self.logger.info("使用默认配置")
         self.config = {
             'document_info_fields': ['businessCode', 'description', 'unit'],
             'factor_categories': {
@@ -159,6 +198,20 @@ class DataManager:
         if data_path:
             self.load_data(data_path)
     
+    def _validate_input(self, value, expected_type, name="参数"):
+        """通用输入验证方法"""
+        try:
+            ValidationUtils.validate_input(value, name, expected_type)
+            return True
+        except (ValueError, TypeError) as e:
+            logger = logging.getLogger('CalcAnyApp')
+            logger.error(f"输入验证失败 - {name}: {e}")
+            return False
+    
+    def _safe_get_value(self, data, key, default=""):
+        """安全获取字典值的通用方法"""
+        return ValidationUtils.safe_get_value(data, key, default)
+    
     def load_data(self, data_path):
         """加载数据文件，包含错误处理"""
         try:
@@ -241,23 +294,20 @@ class DataManager:
     
     def get_basic_info_from_data(self, factor_name, basic_info_fields):
         """根据basic_info字段列表从JSON数据中获取对应的值"""
-        if not basic_info_fields:
+        if not self._validate_input(basic_info_fields, (list, tuple), "basic_info_fields"):
             return {}
         
         basic_info = {}
         
         # 根据字段列表从数据中提取值，配置了多少字段就显示多少字段
         for field in basic_info_fields:
-            if self.data and field in self.data:
-                # 从最外层数据获取
-                basic_info[field] = self.data[field]
-            elif self.data and 'calculateItemVO' in self.data and field in self.data['calculateItemVO']:
+            # 优先从最外层数据获取
+            value = self._safe_get_value(self.data, field)
+            if not value:
                 # 从calculateItemVO中获取
-                basic_info[field] = self.data['calculateItemVO'][field]
-            else:
-                # 如果JSON中不存在该字段，显示为空值
-                # 确保配置中的所有字段都会显示
-                basic_info[field] = ""
+                calculate_item = self._safe_get_value(self.data, 'calculateItemVO', {})
+                value = self._safe_get_value(calculate_item, field)
+            basic_info[field] = value
         
         return basic_info
 
@@ -269,20 +319,10 @@ class DataManager:
     def get_data_for_level(self, nodes, columns, chunk_size=1000):
         """获取指定层级的数据，包含输入验证和内存优化"""
         # 输入验证
-        if not nodes:
-            logging.info("节点列表为空，返回空DataFrame")
+        if not self._validate_input(nodes, (list, tuple), "节点列表"):
             return pd.DataFrame()
         
-        if not isinstance(nodes, (list, tuple)):
-            logging.error("节点参数必须是列表或元组类型")
-            return pd.DataFrame()
-        
-        if not columns:
-            logging.warning("列配置为空，返回空DataFrame")
-            return pd.DataFrame()
-        
-        if not isinstance(columns, (list, tuple)):
-            logging.error("列参数必须是列表或元组类型")
+        if not self._validate_input(columns, (list, tuple), "列配置"):
             return pd.DataFrame()
         
         try:
@@ -303,10 +343,8 @@ class DataManager:
                 
                 record = {}
                 for col in columns:
-                    if not isinstance(col, str):
-                        logging.warning(f"列名 {col} 不是字符串类型，跳过")
-                        continue
-                    record[col] = node.get(col, '')
+                    if isinstance(col, str):
+                        record[col] = self._safe_get_value(node, col)
                 records.append(record)
             
             if not records:
@@ -337,17 +375,17 @@ class DataManager:
 
     def get_all_nodes_for_level(self, start_node, target_level):
         """递归查找指定层级的所有节点，包含输入验证和边界检查"""
+        logger = logging.getLogger('CalcAnyApp')
+        logger.info(f"=== get_all_nodes_for_level方法开始执行 ===")
+        logger.info(f"输入参数 - start_node类型: {type(start_node)}, target_level: {target_level}")
+        
         # 输入验证
-        if not start_node:
-            logging.warning("起始节点为空")
+        if not self._validate_input(start_node, dict, "起始节点"):
+            logger.error("起始节点验证失败")
             return []
         
-        if not isinstance(start_node, dict):
-            logging.error("起始节点必须是字典类型")
-            return []
-        
-        if not target_level or not isinstance(target_level, str):
-            logging.error("目标层级必须是非空字符串")
+        if not self._validate_input(target_level, str, "目标层级") or not target_level:
+            logger.error("目标层级验证失败")
             return []
         
         nodes = []
@@ -368,27 +406,44 @@ class DataManager:
             visited_nodes.add(node_id)
             
             try:
+                logger = logging.getLogger('CalcAnyApp')
+                current_level = current_node.get('calcLevel')
+                logger.info(f"处理节点，深度{depth}，当前层级: {current_level}，目标层级: {target_level}")
+                
                 # 检查当前节点是否匹配目标层级
-                if current_node.get('calcLevel') == target_level:
+                if current_level == target_level:
+                    logger.info(f"找到匹配节点，层级: {current_level}")
                     nodes.append(current_node)
                 
                 # 递归处理子节点
                 sub_list = current_node.get('subList')
                 if sub_list and isinstance(sub_list, list):
-                    for child in sub_list:
+                    logger.info(f"当前节点有{len(sub_list)}个子节点")
+                    for i, child in enumerate(sub_list):
                         if isinstance(child, dict):
+                            logger.info(f"递归处理第{i+1}个子节点")
                             recurse(child, depth + 1)
                         else:
-                            logging.warning(f"子节点不是字典类型，跳过: {type(child)}")
+                            logger.warning(f"子节点不是字典类型，跳过: {type(child)}")
+                else:
+                    logger.info(f"当前节点没有子节点或subList不是列表")
                             
             except Exception as e:
-                logging.error(f"处理节点时发生错误: {e}")
+                logger.error(f"处理节点时发生错误: {e}")
             finally:
                 visited_nodes.discard(node_id)
         
         try:
+            logger = logging.getLogger('CalcAnyApp')
+            logger.info(f"开始递归查找层级为 '{target_level}' 的节点")
+            logger.info(f"起始节点calcLevel: {start_node.get('calcLevel', 'unknown')}")
+            logger.info(f"起始节点是否有subList: {'subList' in start_node}")
+            if 'subList' in start_node:
+                logger.info(f"起始节点subList长度: {len(start_node.get('subList', []))}")
             recurse(start_node)
-            logging.info(f"找到 {len(nodes)} 个层级为 '{target_level}' 的节点")
+            logger.info(f"找到 {len(nodes)} 个层级为 '{target_level}' 的节点")
+            if len(nodes) == 0:
+                logger.warning(f"未找到层级为 '{target_level}' 的节点，起始节点结构: {start_node.get('calcLevel', 'unknown')}")
             return nodes
         except Exception as e:
             logging.error(f"递归查找节点时发生错误: {e}")
@@ -452,7 +507,7 @@ class DataManager:
                 
                 for node in chunk_nodes:
                     if isinstance(node, dict):
-                        record = {col: node.get(col, '') for col in columns if isinstance(col, str)}
+                        record = {col: self._safe_get_value(node, col) for col in columns if isinstance(col, str)}
                         chunk_records.append(record)
                 
                 if chunk_records:

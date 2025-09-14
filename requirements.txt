@@ -1,20 +1,24 @@
 # CalcAny 数据分析可视化工具 - 依赖包列表
 # 安装命令: pip install -r requirements.txt
 
-# 数据处理
-pandas>=1.5.0
+# 核心依赖
+pandas>=1.5.0          # 数据处理和分析
+psutil>=5.9.0           # 系统监控和内存优化
 
-# 系统监控
-psutil>=5.9.0
-
-# GUI框架 (通常Python自带，但某些环境可能需要)
-# tkinter - 通常包含在Python标准库中
+# GUI框架 (Python标准库)
+# tkinter - 通常包含在Python标准库中，无需单独安装
 
 # 开发和打包工具 (可选)
-# pyinstaller>=6.0.0  # 用于打包可执行文件
-# setuptools>=65.0.0  # 用于项目构建
+# pyinstaller>=6.0.0   # 用于打包可执行文件
+# setuptools>=65.0.0   # 用于项目构建
 
-# 注意:
-# 1. tkinter通常包含在Python标准库中，无需单独安装
-# 2. 如果需要打包可执行文件，请取消注释pyinstaller
-# 3. 建议使用Python 3.8+版本以获得最佳兼容性
+# 项目特性:
+# - 模块化架构设计，包含utils.py通用工具模块
+# - 支持数据验证、剪贴板操作、日志管理等功能
+# - 经过代码重构优化，消除重复代码
+
+# 注意事项:
+# 1. 建议使用Python 3.8+版本以获得最佳兼容性
+# 2. tkinter通常包含在Python标准库中，无需单独安装
+# 3. 如果需要打包可执行文件，请取消注释pyinstaller
+# 4. 所有工具函数已模块化，提高代码可维护性
