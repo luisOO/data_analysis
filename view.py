@@ -607,8 +607,8 @@ class SubFactorDetailView:
         # 基本信息区域 - 紧凑设计
         self.basic_info_frame = ttk.LabelFrame(main_container, text="📋 基本信息", style="Tech.TLabelframe")
         self.basic_info_frame.pack(fill=tk.X, padx=0, pady=(0, 8))
-        self.basic_info_frame.configure(height=100)  # 减小高度
-        self.basic_info_frame.pack_propagate(False)
+        # 不再固定高度，允许根据内容自适应
+        # 但仍然保持紧凑设计
         
         # 创建右键菜单
         self.create_context_menu()
@@ -766,26 +766,9 @@ class SubFactorDetailView:
         
         if not info:
             return
-            
-        # 创建滚动区域
-        canvas = tk.Canvas(self.basic_info_frame, height=120, bg="white", highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.basic_info_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # 布局滚动组件
-        canvas.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-        scrollbar.pack(side="right", fill="y")
-        
-        # 创建主容器框架，设置背景色
-        info_frame = tk.Frame(scrollable_frame, bg="white")
+        # 直接在basic_info_frame上创建主容器框架，不添加额外滚动条
+        info_frame = tk.Frame(self.basic_info_frame, bg="white")
         info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 定义字段显示优先级
@@ -795,56 +778,26 @@ class SubFactorDetailView:
         # 按优先级排序显示字段
         ordered_fields = [field for field in priority_fields if field in info] + other_fields
         
-        # 动态分配每行字段数量，根据字段内容长度智能分配
-        def calculate_field_width(field_key, field_value):
-            """计算字段显示所需的大概宽度"""
-            value_text = str(field_value) if field_value is not None else "N/A"
-            field_text = f"{field_key}: {value_text}"
-            # 估算字符宽度，中文字符按2个单位计算
-            width = 0
-            for char in field_text:
-                if ord(char) > 127:  # 中文字符
-                    width += 2
-                else:  # 英文字符
-                    width += 1
-            return width
-        
-        # 计算所有字段的宽度
-        field_widths = []
-        for field_key in ordered_fields:
-            field_value = info[field_key]
-            width = calculate_field_width(field_key, field_value)
-            field_widths.append((field_key, width))
-        
-        # 动态分组算法：尽可能在一行内放置更多字段
+        # 固定布局：每行6个字段，确保对齐
+        fields_per_row = 6
         field_groups = []
-        current_group = []
-        current_width = 0
-        max_width_per_row = 200  # 增加每行最大字符宽度，充分利用空间
         
-        for field_key, width in field_widths:
-            # 如果当前组为空或者添加当前字段不会超出宽度限制
-            if not current_group or (current_width + width + 10) <= max_width_per_row:  # 10为字段间距
-                current_group.append(field_key)
-                current_width += width + 10
-            else:
-                # 当前组已满，开始新组
-                if current_group:
-                    field_groups.append(current_group)
-                current_group = [field_key]
-                current_width = width + 10
+        # 将字段按每行6个分组
+        for i in range(0, len(ordered_fields), fields_per_row):
+            group = ordered_fields[i:i + fields_per_row]
+            field_groups.append(group)
         
-        # 添加最后一组
-        if current_group:
-            field_groups.append(current_group)
+        # 使用Grid布局确保字段精确对齐
+        # 配置列权重，确保每列等宽
+        for col in range(fields_per_row):
+            info_frame.grid_columnconfigure(col, weight=1, uniform="field_column")
         
-        # 显示字段组，使用行容器和pack布局确保填满整行
+        # 显示字段组，使用Grid布局确保对齐
         for row_idx, group in enumerate(field_groups):
-            # 创建行容器
-            row_frame = tk.Frame(info_frame, bg="white")
-            row_frame.pack(fill=tk.X, pady=1)
+            # 配置行权重
+            info_frame.grid_rowconfigure(row_idx, weight=0)
             
-            # 为每个字段创建等宽容器
+            # 为每个字段创建标签并放置在Grid中
             for col_idx, field_key in enumerate(group):
                 field_value = info[field_key]
                 value_text = str(field_value) if field_value is not None else "N/A"
@@ -857,13 +810,9 @@ class SubFactorDetailView:
                     value_color = "#34495e"
                     value_font = ("Microsoft YaHei UI", 9, "normal")
                 
-                # 创建字段容器，确保等宽分布
-                field_container = tk.Frame(row_frame, bg="white")
-                field_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=1)
-                
-                # 创建字段标签，填满容器
+                # 创建字段标签
                 field_text = f"{field_key}: {value_text}"
-                field_label = tk.Label(field_container, text=field_text, 
+                field_label = tk.Label(info_frame, text=field_text, 
                                      font=("Microsoft YaHei UI", 9),
                                      foreground=value_color,
                                      cursor="hand2",
@@ -871,30 +820,21 @@ class SubFactorDetailView:
                                      anchor="w",
                                      relief="flat",
                                      padx=8, pady=3)
-                field_label.pack(fill=tk.BOTH, expand=True)
+                # 使用Grid布局放置标签，sticky="ew"确保水平填充
+                field_label.grid(row=row_idx, column=col_idx, sticky="ew", padx=2, pady=1)
                 
                 # 绑定复制功能
                 field_label.bind("<Button-3>", lambda e, text=value_text: self.show_field_menu(e, text))
                 field_label.bind("<Double-Button-1>", lambda e, text=value_text: self.copy_value_to_clipboard(text))
                 
                 # 悬停效果（改变背景色）
-                def on_enter(e, label=field_label, container=field_container):
+                def on_enter(e, label=field_label):
                     label.configure(background="#e8f4fd")
-                    container.configure(background="#e8f4fd")
-                def on_leave(e, label=field_label, container=field_container):
+                def on_leave(e, label=field_label):
                     label.configure(background="white")
-                    container.configure(background="white")
                 
                 field_label.bind("<Enter>", on_enter)
                 field_label.bind("<Leave>", on_leave)
-            
-            # 动态分组不需要空白占位符，每行字段数量根据内容自适应
-            
-        # 绑定鼠标滚轮事件
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind("<MouseWheel>", _on_mousewheel)
-        scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
                 
     def show_field_menu(self, event, value):
         """显示字段值右键菜单"""
