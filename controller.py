@@ -218,8 +218,17 @@ class AppController:
         """应用搜索过滤"""
         self.logger.info(f"应用搜索过滤: {search_text}")
         
+        # 检查是否有当前数据帧
         if not hasattr(self, 'current_df') or self.current_df is None or self.current_df.empty:
             return
+            
+        # 检查搜索文本是否与上次相同，如果相同则跳过
+        if hasattr(self, '_last_search_text') and self._last_search_text == search_text and hasattr(self, '_last_search_level') and self._last_search_level == level:
+            return
+            
+        # 保存当前搜索文本和层级
+        self._last_search_text = search_text
+        self._last_search_level = level
             
         try:
             # 如果搜索文本为空，显示所有数据
@@ -260,7 +269,10 @@ class AppController:
                 
             # 更新表格显示
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
-                self.view.factor_view.detail_view.display_data_table(filtered_df, display_columns)
+                # 获取当前层级的列配置
+                current_level = getattr(self.view.factor_view.detail_view, 'current_level', 'part')
+                columns = self.config_manager.get_data_table_columns(current_level, self.current_sub_factor)
+                self.view.factor_view.detail_view.display_data_table(filtered_df, display_columns, columns)
                 self.logger.info(f"搜索过滤完成，找到 {len(filtered_df)} 条匹配记录")
                 
         except Exception as e:
