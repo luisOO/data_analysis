@@ -367,12 +367,12 @@ class DocumentInfoView:
                     field_value = data[field_key]
                     value_text = str(field_value) if field_value is not None else ("待加载..." if is_default else "N/A")
                     
-                    # 字段名和值在同一行显示
+                    # 字段名和值在同一行显示 - 统一字体颜色
                     if value_text in ["N/A", "待加载..."]:
-                        value_color = "#95a5a6"
+                        value_color = "#333333"  # 统一为深灰色
                         value_font = ("Microsoft YaHei UI", 9, "italic")
                     else:
-                        value_color = "#34495e"
+                        value_color = "#000000"  # 统一为黑色
                         value_font = ("Microsoft YaHei UI", 9, "normal")
                     
                     # 创建字段标签
@@ -661,7 +661,7 @@ class SubFactorDetailView:
         self.clear_button.pack(side=tk.LEFT, padx=(0, 3))
         
         # 添加提示信息 - 更小字体
-        self.search_tooltip = ttk.Label(self.search_frame, text="实时搜索", foreground="#888888", font=("Microsoft YaHei UI", 8))
+        self.search_tooltip = ttk.Label(self.search_frame, text="实时搜索", foreground="#333333", font=("Microsoft YaHei UI", 8))
         self.search_tooltip.pack(side=tk.LEFT)
 
         # 数据表格区域 - 占用剩余所有空间，科技风格
@@ -760,6 +760,9 @@ class SubFactorDetailView:
             # 复制到剪贴板
             self.frame.clipboard_clear()
             self.frame.clipboard_append(str(cell_value))
+            # 可以添加提示信息
+            self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#006600")
+            self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
     
     def copy_field_value(self):
         """复制字段值"""
@@ -786,8 +789,8 @@ class SubFactorDetailView:
         # 按优先级排序显示字段
         ordered_fields = [field for field in priority_fields if field in info] + other_fields
         
-        # 固定布局：每行6个字段，确保对齐
-        fields_per_row = 6
+        # 固定布局：每行4个字段，确保对齐
+        fields_per_row = 4
         field_groups = []
         
         # 将字段按每行6个分组
@@ -810,12 +813,12 @@ class SubFactorDetailView:
                 field_value = info[field_key]
                 value_text = str(field_value) if field_value is not None else "N/A"
                 
-                # 字段名和值在同一行显示
+                # 字段名和值在同一行显示 - 统一字体颜色
                 if value_text == "N/A":
-                    value_color = "#95a5a6"
+                    value_color = "#333333"  # 统一为深灰色
                     value_font = ("Microsoft YaHei UI", 9, "italic")
                 else:
-                    value_color = "#34495e"
+                    value_color = "#000000"  # 统一为黑色
                     value_font = ("Microsoft YaHei UI", 9, "normal")
                 
                 # 创建字段标签
@@ -936,7 +939,7 @@ class SubFactorDetailView:
             columns_to_show = list(df.columns)
         else:
             # 既没有数据也没有列配置，显示空数据提示
-            empty_label = ttk.Label(self.table_frame, text="暂无数据", font=("Microsoft YaHei UI", 12), foreground="#999999")
+            empty_label = ttk.Label(self.table_frame, text="暂无数据", font=("Microsoft YaHei UI", 12), foreground="#333333")
             empty_label.place(relx=0.5, rely=0.5, anchor="center")
             return
             
@@ -1031,9 +1034,9 @@ class SubFactorDetailView:
                         self.frame.clipboard_clear()
                         self.frame.clipboard_append(str(values[col_index]))
                         # 可以添加提示信息
-                        self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#008800")
+                        self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#006600")
                         # 2秒后恢复提示
-                        self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#666666"))
+                        self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
                         
     def show_context_menu(self, event):
         """显示右键菜单"""
@@ -1071,8 +1074,8 @@ class SubFactorDetailView:
             self.frame.clipboard_append(row_text)
             
             # 显示提示
-            self.search_tooltip.config(text="已复制整行数据到剪贴板", foreground="#008800")
-            self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#666666"))
+            self.search_tooltip.config(text="已复制整行数据到剪贴板", foreground="#006600")
+            self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
             
     def copy_cell_value(self, event):
         """复制单元格值"""
@@ -1089,8 +1092,8 @@ class SubFactorDetailView:
                 self.frame.clipboard_append(str(values[col_index]))
                 
                 # 显示提示
-                self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#008800")
-                self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#666666"))
+                self.search_tooltip.config(text="已复制单元格内容到剪贴板", foreground="#006600")
+                self.frame.after(2000, lambda: self.search_tooltip.config(text="输入关键词进行实时搜索", foreground="#333333"))
                 
     def export_selected_row(self):
         """导出选中行数据"""

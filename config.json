@@ -1,7 +1,8 @@
 {
-  "document_info_fields": ["businessCode","projectName", "calModel","onlineCalFlag", "warrantyBuyoutFlag","signSubject",
-  "tradeTerm","customerName","applyTypeName","naLevel","partsDealFlag","countryCode","currency",
-"approveLevelName","serviceAppLevelName","netSalesRevenue","grossMargin","regionGrossProfit", "regionGrossMargin","calculateDate"],
+  "document_info_fields": ["businessCode","projectName", "countryCode","currency","calModel",
+  "onlineCalFlag", "customerName","warrantyBuyoutFlag","signSubject",
+  "tradeTerm","applyTypeName","naLevel","partsDealFlag",
+  "approveLevelName","serviceAppLevelName","netSalesRevenue","grossMargin","regionGrossProfit", "regionGrossMargin","calculateDate"],
   "data_hierarchy_names": {
     "total": "整单层",
     "boq": "BOQ层",
@@ -24,7 +25,7 @@
       },
       {
         "name": "总代进销存",
-        "basic_info": ["businessCode", "totalCgp", "description", "unit", "category"],
+        "basic_info": ["businessCode", "totalCgp"],
         "table_info": {
           "total": ["totalCgp", "arCapitalTakesUpCostSoftware"],
           "boq": ["totalCgp"],
