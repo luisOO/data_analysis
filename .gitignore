@@ -1,0 +1,4 @@
+*.pyc
+*.log
+project_rules.md
+settings.json

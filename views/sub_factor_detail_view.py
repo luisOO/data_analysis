@@ -395,12 +395,23 @@ class SubFactorDetailView:
         info_frame = tk.Frame(self.basic_info_frame, bg="white")
         info_frame.pack(fill=tk.X, expand=False, padx=5, pady=5)
         
-        # 定义字段显示优先级
-        priority_fields = ['业务代码', '净销售收入', '总成本毛利率', '描述']
-        other_fields = [field for field in sorted(info.keys()) if field not in priority_fields]
-        
-        # 按优先级排序显示字段
-        ordered_fields = [field for field in priority_fields if field in info] + other_fields
+        # 获取配置文件中的字段顺序
+        if hasattr(self.controller, 'current_sub_factor') and self.controller.current_sub_factor:
+            # 从配置文件获取字段顺序
+            basic_info_fields = self.controller.config_manager.get_sub_factor_basic_info(self.controller.current_sub_factor)
+            # 转换为显示名称并保持配置顺序
+            ordered_fields = []
+            for field_id in basic_info_fields:
+                display_name = self.controller.config_manager.get_display_name(field_id)
+                if display_name in info:
+                    ordered_fields.append(display_name)
+            # 添加配置中没有但info中存在的字段（以防万一）
+            for field in info.keys():
+                if field not in ordered_fields:
+                    ordered_fields.append(field)
+        else:
+            # 如果没有当前子因子，使用原有的排序方式
+            ordered_fields = sorted(info.keys())
         
         # 固定布局：每行4个字段，确保对齐
         fields_per_row = 4
@@ -537,8 +548,8 @@ class SubFactorDetailView:
         if hasattr(self, 'search_tooltip'):
             self.search_tooltip.config(text="🔍 搜索中...", foreground="#666666")
         
-        # 设置延迟到100毫秒，提供极速响应的实时搜索体验
-        self._search_after_id = self.frame.after(100, self._delayed_search_filter)
+        # 设置延迟到50毫秒，提供极速响应的实时搜索体验
+        self._search_after_id = self.frame.after(50, self._delayed_search_filter)
         
     def on_search_button_click(self):
         """当点击搜索按钮时触发"""
@@ -646,7 +657,23 @@ class SubFactorDetailView:
         data = []
         if not df.empty:
             for _, row in df.iterrows():
-                row_data = [str(row[col]) if pd.notna(row[col]) and col in df.columns else "" for col in columns_to_show]
+                row_data = []
+                for col in columns_to_show:
+                    if pd.notna(row[col]) and col in df.columns:
+                        value = row[col]
+                        # 保持数字精度，避免精度丢失
+                        if isinstance(value, (int, float)):
+                            # 对于数字类型，保持原始精度
+                            if isinstance(value, float):
+                                # 浮点数保留足够精度，避免科学计数法
+                                formatted_value = f"{value:.10g}"
+                            else:
+                                formatted_value = str(value)
+                        else:
+                            formatted_value = str(value)
+                        row_data.append(formatted_value)
+                    else:
+                        row_data.append("")
                 data.append(row_data)
         
         # 智能更新表格 - 只在必要时更新标题和数据
