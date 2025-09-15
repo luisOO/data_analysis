@@ -8,7 +8,7 @@
 data_analysis/
 ├── main.py                    # 应用程序入口点
 ├── config.json               # 应用配置文件
-├── config_manager_ui.py      # 配置管理UI组件
+├── config_manager_ui.py      # 配置管理UI组件（通过主程序菜单访问）
 ├── controllers/              # 控制器层
 │   ├── __init__.py
 │   ├── app_controller.py     # 主应用控制器
