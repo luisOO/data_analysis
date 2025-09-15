@@ -20,7 +20,7 @@
         "basic_info": ["saleScenceName", "fullPrepayFlag", "signSubject", "countryCode"],
         "table_info": {
           "model": ["netSalesRevenue", "listPriceTotalOutHardware", "productName"],
-          "part": ["partCode", "productName","capitalOccupation"]
+          "part": ["partCode", "productName","capitalOccupation", "regionGrossMarginHardware"]
         }
       },
       {
@@ -64,6 +64,7 @@
     "serviceAppLevelName": "服务层级名称",
     "capitalOccupation":"全额预付优惠率",
     "onlineCalFlag":"是否线下测算",
-    "partCode":"部件编码"
+    "partCode":"部件编码",
+    "regionGrossMarginHardware":"硬件项目贡献毛利率"
   }
 }
