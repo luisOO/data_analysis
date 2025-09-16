@@ -38,6 +38,7 @@
 - **语言**: Python 3.x
 - **GUI库**: Tkinter (ttk for modern widgets)
 - **数据处理**: Pandas
+- **高精度计算**: Python decimal模块，确保数值计算的高精度，避免浮点数误差
 - **配置文件**: JSON 格式
 - **字体**: 微软雅黑 (Microsoft YaHei UI)，提供更好的中文显示效果
 - **日志系统**: Python logging模块，支持文件和控制台双重输出
@@ -96,8 +97,9 @@ calc-any/
     - `_validate_data()`: 私有方法，验证JSON数据结构和必要字段。
     - `get_document_info()`: 提取单据基本信息，包含异常处理。
     - `get_hierarchical_data()`: 提取`calculateItemVO`的层级数据。
-    - `get_data_for_level(level_nodes, chunk_size)`: 将指定层级的数据节点转换为Pandas DataFrame，支持大数据集分块处理和内存优化。
+    - `get_data_for_level(level_nodes, chunk_size)`: 将指定层级的数据节点转换为Pandas DataFrame，支持大数据集分块处理、内存优化和decimal转换。
     - `_process_large_dataset()`: 私有方法，处理大数据集的分块加载和内存管理。
+    - `_convert_numeric_to_decimal(df)`: 私有方法，将DataFrame中的数字列转换为decimal类型，提高数值精度。
     - `_optimize_dataframe_memory()`: 私有方法，优化DataFrame的内存使用，包括数据类型优化。
     - `_get_memory_usage()`: 私有方法，监控当前内存使用情况。
     - `get_cached_hierarchy_levels()`: 缓存版本的层次级别获取方法，提升性能。

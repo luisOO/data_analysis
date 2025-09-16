@@ -27,6 +27,7 @@ data_analysis/
 │   ├── __init__.py
 │   ├── validation_utils.py   # 验证工具
 │   ├── data_utils.py         # 数据处理工具
+│   ├── lightweight_data.py   # 轻量级数据处理和decimal转换工具
 │   ├── clipboard_utils.py    # 剪贴板工具
 │   └── logging_utils.py      # 日志工具
 └── logs/                     # 日志文件目录
