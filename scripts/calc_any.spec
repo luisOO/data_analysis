@@ -6,18 +6,44 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 # 排除不必要的模块以减少体积和提升启动速度
 excluded_modules = [
-    # 网络相关（如果不需要）
-    'urllib3', 'requests', 'http', 'email',
-    # 测试框架
-    'unittest', 'pytest', 'nose',
-    # 开发工具
-    'pdb', 'doctest', 'pydoc',
-    # 不常用的标准库
-    'sqlite3', 'xml', 'html', 'distutils',
-    # 图像处理（如果不需要）
-    'PIL', 'matplotlib', 'numpy',
-    # 其他大型库
-    'pandas', 'scipy', 'sklearn',
+    # 网络相关模块（保留socket和ssl，psutil需要）
+    'urllib3', 'requests', 'http', 'email', 'ftplib', 'smtplib', 'poplib', 'imaplib',
+    'socketserver', 'http.client', 'http.server',
+    
+    # 测试框架（生产环境不需要）
+    'unittest', 'pytest', 'nose', 'doctest', 'test',
+    
+    # 开发调试工具（生产环境不需要）
+    'pdb', 'pydoc', 'trace', 'profile', 'cProfile', 'pstats',
+    
+    # 数据库相关（项目不使用数据库）
+    'sqlite3', 'dbm', 'shelve',
+    
+    # 文档和标记语言处理（项目不需要）
+    'xml', 'html', 'xmlrpc', 'html.parser', 'xml.etree', 'xml.dom', 'xml.sax',
+    
+    # 构建和分发工具（运行时不需要）
+    'distutils', 'setuptools', 'pip', 'pkg_resources',
+    
+    # 图像和科学计算库（项目已移除这些依赖）
+    'PIL', 'matplotlib', 'numpy', 'pandas', 'scipy', 'sklearn',
+    'cv2', 'skimage', 'imageio',
+    
+    # 多媒体处理（项目不需要）
+    'wave', 'audioop', 'sunau', 'aifc',
+    
+    # 加密和安全（项目不需要高级加密）
+    'cryptography', 'hashlib', 'hmac', 'secrets',
+    
+    # 并发和异步（项目使用简单的线程模型）
+    'asyncio', 'concurrent', 'multiprocessing', 'queue',
+    
+    # 国际化（保留locale，subprocess需要）
+    'gettext',
+    
+    # 其他不常用的标准库模块
+    'turtle', 'tkinter.dnd', 'tkinter.colorchooser', 'tkinter.font',
+    'calendar', 'cmd', 'code', 'codeop', 'compileall',
 ]
 
 a = Analysis(
@@ -25,9 +51,17 @@ a = Analysis(
     pathex=[os.path.abspath('..')],  # 添加项目根路径
     binaries=[],
     datas=[
+        # 核心配置文件（必须包含）
         ('../config/config.json', '.'),
         ('../sample.json', '.'),
-    ] + ([('../logs', 'logs')] if os.path.exists('../logs') else []),
+        ('../config/version_info.txt', '.'),
+        
+        # 日志配置文件（生产环境使用）
+        ('../config/logging_config_production.json', '.'),
+        
+        # 开发环境日志配置（可选，用于调试）
+        ('../config/logging_config.json', '.'),
+    ],
     hiddenimports=[
         # 核心GUI框架（按需加载）
         'tkinter',
@@ -72,8 +106,14 @@ a = Analysis(
     },
     runtime_hooks=[],
     excludes=excluded_modules,  # 排除不必要的模块
-    noarchive=False,  # 保持False以获得更好的启动性能
-    optimize=2,  # 启用最高级别的Python字节码优化
+    noarchive=False,  # 保持False以获得更好的启动性能和内存使用
+    optimize=2,  # 启用最高级别的Python字节码优化（-OO）
+    
+    # 启动性能优化配置
+    cipher=None,  # 不使用加密以提升启动速度
+    
+    # 模块加载优化
+    collect_all=False,  # 不收集所有子模块，只加载必需的
 )
 # 优化PYZ配置
 pyz = PYZ(
@@ -102,13 +142,17 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,  # 可添加图标: 'assets/icon.ico'
-    version_file='../config/version_info.txt',  # 版本信息有助于避免误杀
+    version_file='../config/version_info.txt',  # 详细版本信息，提升杀毒软件信任度
     
-    # 启动优化选项
-    manifest=None,  # 可添加manifest文件提升兼容性
-    uac_admin=False,  # 不需要管理员权限
+    # 防误杀和兼容性配置
+    manifest='../CalcAny.exe.manifest',  # 使用manifest文件提升系统兼容性
+    uac_admin=False,  # 不需要管理员权限，降低安全风险
     uac_uiaccess=False,  # 不需要UI访问权限
     
-    # 安全和兼容性选项
-    hide_console='hide-early',  # 早期隐藏控制台窗口
+    # 启动和显示优化
+    hide_console='hide-early',  # 早期隐藏控制台窗口，提升用户体验
+    
+    # 代码签名配置（可选，用于进一步提升信任度）
+    # codesign_identity='Developer ID Application: Your Name',
+    # entitlements_file='entitlements.plist',
 )

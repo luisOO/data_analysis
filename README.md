@@ -92,12 +92,15 @@ data_analysis/
 │   ├── data_utils.py      # 数据处理工具
 │   ├── clipboard_utils.py # 剪贴板操作工具
 │   └── logging_utils.py   # 日志管理工具
-└── logs/                  # 日志目录（自动创建）
+├── logs/                  # 日志目录（根据配置动态创建）
+└── config/                # 配置文件目录
+    ├── config.json        # 主配置文件
+    └── logging_config.json # 日志配置文件
 ```
 
 ## ⚙️ 配置说明
 
-### 配置文件结构 (config.json)
+### 主配置文件结构 (config.json)
 
 ```json
 {
@@ -126,6 +129,23 @@ data_analysis/
 }
 ```
 
+### 日志配置文件 (logging_config.json)
+
+```json
+{
+  "log_level": "INFO",
+  "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+  "enable_file_logging": true,
+  "log_filename_format": "app_{date}.log"
+}
+```
+
+**配置说明**：
+- `log_level`: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `log_format`: 日志格式模板
+- `enable_file_logging`: 是否启用文件日志记录
+- `log_filename_format`: 日志文件名格式
+
 ### 配置管理
 
 程序提供可视化配置管理界面：
@@ -133,6 +153,7 @@ data_analysis/
 1. 菜单栏 → 工具 → 配置管理
 2. 支持配置编辑、导入、导出和重置
 3. 配置更改后自动刷新程序设置
+4. 支持开发环境和生产环境的不同日志配置
 
 ## 📊 数据格式
 
@@ -231,6 +252,7 @@ python performance_test.py
 - 🛡️ **杀毒兼容**: 显著降低杀毒软件误报率
 - 💾 **低内存占用**: 仅6.6MB运行内存
 - 🔧 **自动优化**: 包含字节码优化、模块排除、启动优化等
+- 📝 **智能日志**: 生产环境默认禁用文件日志，按需动态创建logs目录
 
 #### 📋 传统构建方式
 
@@ -320,7 +342,7 @@ python -c "import json; print('Valid JSON' if json.load(open('your_file.json', '
 
 ### 📋 日志系统
 
-**日志文件位置**: `logs/app_YYYYMMDD.log`
+**日志文件位置**: `logs/app_YYYYMMDD.log` (仅在启用文件日志时创建)
 
 **日志级别说明**:
 - 🔍 **DEBUG**: 详细的调试信息

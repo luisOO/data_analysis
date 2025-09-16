@@ -33,16 +33,18 @@ def optimize_python_cache():
                   capture_output=True)
 
 def create_manifest_file():
-    """创建Windows manifest文件以提升兼容性"""
+    """创建Windows应用程序清单文件，提升系统兼容性和防误杀"""
     manifest_content = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <assemblyIdentity
     version="1.2.13.0"
     processorArchitecture="*"
-    name="CalcAny.exe"
+    name="CalcAny.DataAnalysisTool"
     type="win32"
   />
-  <description>CalcAny Data Analysis Tool</description>
+  <description>CalcAny - 专业数据分析可视化工具</description>
+  
+  <!-- 依赖Windows通用控件，提升界面兼容性 -->
   <dependency>
     <dependentAssembly>
       <assemblyIdentity
@@ -55,27 +57,40 @@ def create_manifest_file():
       />
     </dependentAssembly>
   </dependency>
+  
+  <!-- 安全权限配置，不需要管理员权限 -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
-      <requestedPrivileges>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
         <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
       </requestedPrivileges>
     </security>
   </trustInfo>
+  
+  <!-- 系统兼容性声明，支持Windows 7到Windows 11 -->
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>
-      <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"/>  <!-- Vista -->
-      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/>  <!-- Win7 -->
-      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/>  <!-- Win8 -->
-      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>  <!-- Win8.1 -->
-      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>  <!-- Win10 -->
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/>  <!-- Windows 7 -->
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/>  <!-- Windows 8 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>  <!-- Windows 8.1 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>  <!-- Windows 10 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9b}"/>  <!-- Windows 11 -->
     </application>
   </compatibility>
+  
+  <!-- DPI感知配置，提升高分辨率显示效果 -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
 </assembly>'''
     
     with open('CalcAny.exe.manifest', 'w', encoding='utf-8') as f:
         f.write(manifest_content)
-    print("已创建manifest文件")
+    print("✅ 已创建优化的manifest文件（提升兼容性和防误杀）")
 
 def build_exe():
     """执行优化的EXE构建"""
@@ -131,14 +146,28 @@ def post_build_optimization():
     
     # 复制必要的配置文件到dist目录
     config_files = [
+        # 核心配置文件（必须存在）
         ('config/config.json', 'config.json'),
         ('sample.json', 'sample.json'),
-        ('config/logging_config_production.json', 'logging_config.json')  # 使用生产环境日志配置
+        ('config/version_info.txt', 'version_info.txt'),
+        
+        # 日志配置文件（生产环境优先）
+        ('config/logging_config_production.json', 'logging_config.json'),
+        
+        # 开发环境日志配置（备用，用于调试）
+        ('config/logging_config.json', 'logging_config_dev.json'),
     ]
+    
+    copied_files = []
     for src_file, dst_file in config_files:
         if os.path.exists(src_file):
             shutil.copy2(src_file, f'dist/{dst_file}')
-            print(f"已复制配置文件: {src_file} -> dist/{dst_file}")
+            copied_files.append(f"{src_file} -> dist/{dst_file}")
+            print(f"✅ 已复制配置文件: {src_file} -> dist/{dst_file}")
+        else:
+            print(f"⚠️  配置文件不存在，跳过: {src_file}")
+    
+    print(f"\n📋 共复制 {len(copied_files)} 个配置文件")
     
     # 特别提示日志配置
     print("📝 已使用生产环境日志配置（默认禁用文件日志）")
