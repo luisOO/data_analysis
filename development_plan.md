@@ -2,7 +2,7 @@
 
 ## 1. 项目概述
 
-本项目旨在开发一个基于Python的桌面应用程序，用于对特定结构的JSON数据进行可视化分析。工具将使用Tkinter构建图形用户界面（GUI），并利用Pandas库进行高效的数据处理和展示。
+本项目旨在开发一个基于Python的桌面应用程序，用于对特定结构的JSON数据进行可视化分析。工具将使用Tkinter构建图形用户界面（GUI），并利用自研轻量级数据处理模块进行高效的数据处理和展示。
 
 该工具的核心功能是加载层级结构的JSON文件，并根据可配置的规则，在界面上清晰地展示单据信息和多维度的数据因子，帮助用户快速理解和分析数据。
 
@@ -37,7 +37,7 @@
 
 - **语言**: Python 3.x
 - **GUI库**: Tkinter (ttk for modern widgets)
-- **数据处理**: Pandas
+- **数据处理**: 轻量级数据模块（替代Pandas）
 - **高精度计算**: Python decimal模块，确保数值计算的高精度，避免浮点数误差
 - **配置文件**: JSON 格式
 - **字体**: 微软雅黑 (Microsoft YaHei UI)，提供更好的中文显示效果
@@ -61,7 +61,7 @@
 
 为了实现功能与UI的解耦，我们将采用经典的**Model-View-Controller (MVC)**架构模式。
 
-- **Model (模型)**: 负责数据的加载、解析、处理和存储。它将JSON数据转换为Pandas DataFrame和自定义的数据对象，并处理所有配置信息。
+- **Model (模型)**: 负责数据的加载、解析、处理和存储。它将JSON数据转换为轻量级DataFrame和自定义的数据对象，并处理所有配置信息。
 - **View (视图)**: 负责构建和展示用户界面。它包含所有的Tkinter窗口、控件和布局，并从Controller获取要展示的数据。
 - **Controller (控制器)**: 作为Model和View之间的桥梁。它响应用户的操作（如点击按钮、选择列表项），调用Model更新数据，并通知View刷新界面。
 
@@ -97,7 +97,7 @@ calc-any/
     - `_validate_data()`: 私有方法，验证JSON数据结构和必要字段。
     - `get_document_info()`: 提取单据基本信息，包含异常处理。
     - `get_hierarchical_data()`: 提取`calculateItemVO`的层级数据。
-    - `get_data_for_level(level_nodes, chunk_size)`: 将指定层级的数据节点转换为Pandas DataFrame，支持大数据集分块处理、内存优化和decimal转换。
+    - `get_data_for_level(level_nodes, chunk_size)`: 将指定层级的数据节点转换为轻量级DataFrame，支持大数据集分块处理、内存优化和decimal转换。
     - `_process_large_dataset()`: 私有方法，处理大数据集的分块加载和内存管理。
     - `_convert_numeric_to_decimal(df)`: 私有方法，将DataFrame中的数字列转换为decimal类型，提高数值精度。
     - `_optimize_dataframe_memory()`: 私有方法，优化DataFrame的内存使用，包括数据类型优化。
@@ -122,7 +122,7 @@ calc-any/
     - `display_basic_info(data, display_names)`: 显示子因子的基本信息，使用配置的中文名称，支持右键菜单和双击复制字段值。
     - `setup_data_hierarchy_selection()`: 设置数据层次单选按钮，显示配置的中文名称，优先选择"total"层次。
     - `on_hierarchy_level_select(level)`: 处理数据层次单选按钮的选择事件，并重置搜索框。
-    - `display_data_table(dataframe, column_names)`: 使用`ttk.Treeview`作为表格，展示Pandas DataFrame的内容，列名显示为配置的中文名称，支持右键菜单复制行为JSON和Markdown格式，以及双击复制单元格值。
+    - `display_data_table(dataframe, column_names)`: 使用`tksheet`作为表格，展示轻量级DataFrame的内容，列名显示为配置的中文名称，支持右键菜单复制行为JSON和Markdown格式，以及双击复制单元格值。
     - `on_search_change()`, `on_search_button_click()`, `on_clear_search()`: 处理搜索框内容变化、搜索按钮点击和清除按钮点击事件。
     - `apply_search_filter()`: 应用搜索过滤，通知控制器过滤数据。
     - `create_context_menu()`, `show_table_context_menu()`, `copy_row_as_json()`, `copy_row_as_markdown()`, `copy_cell_value()`: 创建和处理表格右键菜单，实现多种格式的复制功能。
@@ -181,7 +181,7 @@ calc-any/
 ### 5.3. 内存优化
 
 - **大数据集处理**: 实现了数据分块处理机制，当数据量超过阈值时自动启用分块加载，避免内存溢出。
-- **DataFrame优化**: 自动优化Pandas DataFrame的数据类型，包括数值类型降级和字符串类型category化。
+- **DataFrame优化**: 自动优化轻量级DataFrame的数据类型，包括数值类型降级和内存使用优化。
 - **内存监控**: 集成psutil库实现内存使用监控，实时跟踪内存消耗情况。
 - **缓存机制**: 使用LRU缓存优化频繁调用的方法，提升系统响应速度。
 - **垃圾回收**: 在大数据处理过程中主动触发垃圾回收，及时释放不再使用的内存。
@@ -211,7 +211,7 @@ calc-any/
 5.  **【已完成】实现单据基本信息展示**: 编写`controller.py`，将加载的数据连接到单据信息视图。
 6.  **【已完成】实现因子展示区**: 实现因子分类选项卡和子因子按钮的动态生成，支持中文名称显示。
 7.  **【已完成】实现数据层次结构单选按钮**: 将数据层次以单选按钮形式展示，支持中文名称显示。
-8.  **【已完成】实现数据表格与Pandas集成**: 将选中层级的数据转换为DataFrame，并显示在表格中，支持列名中文显示。
+8.  **【已完成】实现数据表格与轻量级数据模块集成**: 将选中层级的数据转换为DataFrame，并显示在表格中，支持列名中文显示。
 9.  **【已完成】实现因子特定配置**: 支持每个因子独立配置子因子基本信息和数据表格列，子因子配置可覆盖公共配置。
 10. **【已完成】优化界面布局**: 去掉树形结构，只保留单选按钮，优化整体显示效果。
 11. **【已完成】合并配置文件中field_display_names和factor_display_names配置**: 将字段和因子的显示名称配置合并为统一的display_names配置，简化配置结构。
