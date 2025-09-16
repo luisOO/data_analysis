@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ConfigManagerUI:
     """配置管理界面类"""
     
-    def __init__(self, config_path: str = "config.json"):
+    def __init__(self, config_path: str = "config/config.json"):
         self.config_path = config_path
         self.config_data = {}
         self.root = None

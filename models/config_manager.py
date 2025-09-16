@@ -18,15 +18,15 @@ class ConfigManager:
         try:
             # 检查配置文件是否存在
             if not os.path.exists(config_path):
-                logging.warning(f"配置文件不存在: {config_path}，将使用默认配置")
-                self._load_default_config()
-                return
+                error_msg = f"配置文件不存在: {config_path}"
+                logging.error(error_msg)
+                raise FileNotFoundError(error_msg)
             
             # 检查文件是否可读
             if not os.access(config_path, os.R_OK):
-                logging.error(f"无法读取配置文件: {config_path}")
-                self._load_default_config()
-                return
+                error_msg = f"无法读取配置文件: {config_path}"
+                logging.error(error_msg)
+                raise PermissionError(error_msg)
             
             with open(config_path, 'r', encoding='utf-8') as f:
                 self.config = json.load(f)
@@ -37,11 +37,13 @@ class ConfigManager:
             logging.info(f"成功加载配置文件: {config_path}")
             
         except json.JSONDecodeError as e:
-            logging.error(f"配置文件JSON格式错误: {e}")
-            self._load_default_config()
+            error_msg = f"配置文件JSON格式错误: {e}"
+            logging.error(error_msg)
+            raise json.JSONDecodeError(error_msg, "", 0)
         except Exception as e:
-            logging.error(f"配置文件加载时发生未知错误: {e}")
-            self._load_default_config()
+            error_msg = f"配置文件加载时发生未知错误: {e}"
+            logging.error(error_msg)
+            raise Exception(error_msg)
     
     def _validate_config(self):
         """验证配置文件的基本结构"""
@@ -54,43 +56,7 @@ class ConfigManager:
             if key not in self.config:
                 logging.warning(f"配置文件缺少必需项: {key}")
     
-    def _load_default_config(self):
-        """加载默认配置"""
-        self.config = {
-            "document_info_fields": [
-                "calcItemName",
-                "calcItemCode",
-                "calcItemType",
-                "calcItemUnit",
-                "calcItemDesc"
-            ],
-            "factor_categories": {
-                "人工": ["人工费"],
-                "材料": ["材料费"],
-                "机械": ["机械费"],
-                "其他": ["其他费用"]
-            },
-            "display_names": {
-                "calcItemName": "项目名称",
-                "calcItemCode": "项目编码",
-                "calcItemType": "项目类型",
-                "calcItemUnit": "计量单位",
-                "calcItemDesc": "项目描述"
-            },
-            "hierarchy_levels": {
-                "total": {"name": "合计", "enabled": True},
-                "boq": {"name": "清单", "enabled": True},
-                "model": {"name": "模型", "enabled": True},
-                "part": {"name": "构件", "enabled": True}
-            },
-            "table_columns": [
-                {"field": "calcItemName", "display_name": "项目名称", "width": 200},
-                {"field": "calcItemCode", "display_name": "项目编码", "width": 150},
-                {"field": "calcItemType", "display_name": "项目类型", "width": 100},
-                {"field": "calcItemUnit", "display_name": "计量单位", "width": 100}
-            ]
-        }
-        logging.info("已加载默认配置")
+
     
     def get_document_info_fields(self):
         """获取文档信息字段列表"""

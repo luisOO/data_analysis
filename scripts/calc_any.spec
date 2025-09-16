@@ -21,15 +21,13 @@ excluded_modules = [
 ]
 
 a = Analysis(
-    ['main.py'],
-    pathex=[os.path.abspath('.')],  # 添加当前路径
+    ['../main.py'],
+    pathex=[os.path.abspath('..')],  # 添加项目根路径
     binaries=[],
     datas=[
-        ('config.json', '.'),
-        ('sample.json', '.'),
-        # 添加日志目录（如果存在）
-        ('logs', 'logs') if os.path.exists('logs') else None,
-    ],
+        ('../config/config.json', '.'),
+        ('../sample.json', '.'),
+    ] + ([('../logs', 'logs')] if os.path.exists('../logs') else []),
     hiddenimports=[
         # 核心GUI框架（按需加载）
         'tkinter',
@@ -104,7 +102,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,  # 可添加图标: 'assets/icon.ico'
-    version_file='version_info.txt',  # 版本信息有助于避免误杀
+    version_file='../config/version_info.txt',  # 版本信息有助于避免误杀
     
     # 启动优化选项
     manifest=None,  # 可添加manifest文件提升兼容性

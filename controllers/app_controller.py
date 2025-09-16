@@ -16,7 +16,7 @@ class AppController:
         
         try:
             # 加载配置文件
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.json')
             self.config_manager = ConfigManager(config_path)
             self.data_manager = DataManager(config_manager=self.config_manager)
             self.view = MainAppView(self)

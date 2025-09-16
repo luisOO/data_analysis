@@ -55,17 +55,28 @@ python main.py
 data_analysis/
 ├── main.py                 # 程序入口文件
 ├── config_manager_ui.py   # 配置管理界面
-├── config.json            # 配置文件
-├── config_template.json   # 配置模板
 ├── sample.json            # 示例数据
 ├── requirements.txt       # 依赖包列表
-├── version_info.txt       # 版本信息文件
-├── calc_any.spec          # PyInstaller打包配置
-├── build_optimized.py     # 🚀 优化构建脚本
-├── startup_optimizer.py   # ⚡ 启动性能优化器
-├── performance_test.py    # 📊 性能测试工具
-├── EXE_OPTIMIZATION_GUIDE.md    # 📖 EXE优化完整指南
-├── EXE_OPTIMIZATION_REPORT.md   # 📋 EXE优化成果报告
+├── LICENSE                # 许可证文件
+├── README.md              # 项目说明文档
+├── config/                # 配置文件目录
+│   ├── config.json        # 主配置文件
+│   ├── config_template.json # 配置模板
+│   └── version_info.txt   # 版本信息文件
+├── scripts/               # 构建和脚本文件目录
+│   ├── build_optimized.py # 🚀 优化构建脚本
+│   ├── startup_optimizer.py # ⚡ 启动性能优化器
+│   └── calc_any.spec      # PyInstaller打包配置
+├── docs/                  # 文档目录
+│   ├── README_EXE.md      # EXE使用说明
+│   ├── CHANGELOG.md       # 更新日志
+│   ├── CONFIG_ENHANCEMENT_GUIDE.md # 配置增强指南
+│   ├── DEPENDENCY_CLEANUP_REPORT.md # 依赖清理报告
+│   ├── EXE_OPTIMIZATION_GUIDE.md # 📖 EXE优化完整指南
+│   ├── EXE_OPTIMIZATION_REPORT.md # 📋 EXE优化成果报告
+│   ├── PROJECT_STRUCTURE.md # 项目结构说明
+│   ├── development_plan.md # 开发计划
+│   └── 安装说明.txt       # 安装说明
 ├── controllers/           # 控制器模块
 │   ├── app_controller.py  # 主应用逻辑控制
 │   └── logging_setup.py   # 日志配置管理

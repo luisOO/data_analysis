@@ -81,35 +81,45 @@ def build_exe():
     """执行优化的EXE构建"""
     print("开始构建优化的EXE文件...")
     
+    # 切换到项目根目录执行构建
+    original_dir = os.getcwd()
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(project_root)  # 回到项目根目录
+    os.chdir(project_root)
+    
     # PyInstaller命令参数
     cmd = [
         'pyinstaller',
         '--clean',  # 清理临时文件
         '--noconfirm',  # 不询问覆盖
         '--log-level=WARN',  # 减少日志输出
-        'calc_any.spec'
+        'scripts/calc_any.spec'
     ]
     
-    start_time = time.time()
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    build_time = time.time() - start_time
-    
-    if result.returncode == 0:
-        print(f"✅ 构建成功! 耗时: {build_time:.2f}秒")
+    try:
+        start_time = time.time()
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        build_time = time.time() - start_time
         
-        # 检查生成的文件
-        exe_path = Path('dist/CalcAny.exe')
-        if exe_path.exists():
-            size_mb = exe_path.stat().st_size / (1024 * 1024)
-            print(f"📦 EXE文件大小: {size_mb:.2f} MB")
-            print(f"📍 文件位置: {exe_path.absolute()}")
-        
-        return True
-    else:
-        print("❌ 构建失败!")
-        print("错误输出:")
-        print(result.stderr)
-        return False
+        if result.returncode == 0:
+            print(f"✅ 构建成功! 耗时: {build_time:.2f}秒")
+            
+            # 检查生成的文件
+            exe_path = Path('dist/CalcAny.exe')
+            if exe_path.exists():
+                size_mb = exe_path.stat().st_size / (1024 * 1024)
+                print(f"📦 EXE文件大小: {size_mb:.2f} MB")
+                print(f"📍 文件位置: {exe_path.absolute()}")
+            
+            return True
+        else:
+            print("❌ 构建失败!")
+            print("错误输出:")
+            print(result.stderr)
+            return False
+    finally:
+        # 恢复原始工作目录
+        os.chdir(original_dir)
 
 def post_build_optimization():
     """构建后优化"""
@@ -120,11 +130,14 @@ def post_build_optimization():
     print("执行构建后优化...")
     
     # 复制必要的配置文件到dist目录
-    config_files = ['config.json', 'sample.json']
-    for config_file in config_files:
-        if os.path.exists(config_file):
-            shutil.copy2(config_file, 'dist/')
-            print(f"已复制配置文件: {config_file}")
+    config_files = [
+        ('config/config.json', 'config.json'),
+        ('sample.json', 'sample.json')
+    ]
+    for src_file, dst_file in config_files:
+        if os.path.exists(src_file):
+            shutil.copy2(src_file, f'dist/{dst_file}')
+            print(f"已复制配置文件: {src_file} -> dist/{dst_file}")
     
     # 创建logs目录
     logs_dir = Path('dist/logs')

@@ -6,7 +6,7 @@ CalcAny - 专业数据计算分析工具
 """
 
 # 首先应用启动优化
-from startup_optimizer import apply_startup_optimizations, print_startup_summary
+from scripts.startup_optimizer import apply_startup_optimizations, print_startup_summary
 
 # 应用启动优化
 optimizer = apply_startup_optimizations()

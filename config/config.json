@@ -1,0 +1,70 @@
+{
+  "document_info_fields": ["businessCode", "projectName", "countryCode", "currency", "calModel",
+  "onlineCalFlag", "customerName", "warrantyBuyoutFlag", "signSubject",
+  "tradeTerm", "applyTypeName", "naLevel", "partsDealFlag",
+  "approveLevelName", "serviceAppLevelName", "netSalesRevenue", "grossMargin", "regionGrossProfit", "regionGrossMargin", "calculateDate"],
+  "data_hierarchy_names": {
+    "total": "整单层",
+    "boq": "BOQ层",
+    "model": "模型层",
+    "part": "部件层"
+  },
+  "enabled_hierarchy_levels": ["model", "part"],  
+  "default_hierarchy_level": "part",
+  "default_data_path": "{}",
+  "ui_theme": {},
+  "factor_categories": {
+    "收入因子": [
+      {
+        "name": "全额预付优惠率",
+        "basic_info": ["saleScenceName", "fullPrepayFlag", "signSubject", "countryCode"],
+        "table_info": {
+          "model": ["netSalesRevenue", "listPriceTotalOutHardware", "productName"],
+          "part": ["partCode", "productName","capitalOccupation", "regionGrossMarginHardware"]
+        }
+      },
+      {
+        "name": "总代进销存",
+        "basic_info": ["businessCode", "totalCgp"],
+        "table_info": {
+          "total": ["totalCgp", "arCapitalTakesUpCostSoftware"],
+          "boq": ["totalCgp"],
+          "model": ["totalCgp"],
+          "part": ["partCode", "productName","capitalOccupation", "regionGrossMarginHardware"]
+        }
+      }
+    ]
+  },
+  "display_names": {
+    "netSalesRevenue": "净销售收入",
+    "listPriceTotalOutHardware": "硬件外总价",
+    "totalCgp": "总成本毛利率",
+    "arCapitalTakesUpCostSoftware": "软件资本成本",
+    "productName": "产品名称",
+    "calcLevel": "测算层级",
+    "businessCode": "业务代码",
+    "saleScenceName": "销售场景",
+    "calModel": "测算模型",
+    "fullPrepayFlag": "全额预付标识",
+    "warrantyBuyoutFlag": "保修买断标识",
+    "signSubject": "签约主体编码",
+    "tradeTerm": "贸易条款",
+    "customerName": "客户名称",
+    "applyTypeName": "申请类型名称",
+    "naLevel": "NA级别",
+    "partsDealFlag": "是否部件报价",
+    "countryCode": "国家编码",
+    "currency": "货币",
+    "grossMargin": "毛利",
+    "approveLevelName": "商务级别",
+    "regionGrossProfit": "项目贡献毛利",
+    "regionGrossMargin": "项目贡献毛利率",
+    "calculateDate": "测算日期",
+    "projectName": "项目名称",
+    "serviceAppLevelName": "服务层级名称",
+    "capitalOccupation":"全额预付优惠率",
+    "onlineCalFlag":"是否线下测算",
+    "partCode":"部件编码",
+    "regionGrossMarginHardware":"硬件项目贡献毛利率"
+  }
+}
