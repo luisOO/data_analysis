@@ -132,17 +132,19 @@ def post_build_optimization():
     # 复制必要的配置文件到dist目录
     config_files = [
         ('config/config.json', 'config.json'),
-        ('sample.json', 'sample.json')
+        ('sample.json', 'sample.json'),
+        ('config/logging_config_production.json', 'logging_config.json')  # 使用生产环境日志配置
     ]
     for src_file, dst_file in config_files:
         if os.path.exists(src_file):
             shutil.copy2(src_file, f'dist/{dst_file}')
             print(f"已复制配置文件: {src_file} -> dist/{dst_file}")
     
-    # 创建logs目录
-    logs_dir = Path('dist/logs')
-    logs_dir.mkdir(exist_ok=True)
-    print("已创建logs目录")
+    # 特别提示日志配置
+    print("📝 已使用生产环境日志配置（默认禁用文件日志）")
+    
+    # 生产环境不创建logs目录（根据配置动态创建）
+    print("📝 生产环境不预创建logs目录，将根据日志配置动态创建")
     
     # 清理临时文件
     if os.path.exists('CalcAny.exe.manifest'):
