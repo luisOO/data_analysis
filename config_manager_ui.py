@@ -12,8 +12,8 @@ import logging
 from typing import Dict, List, Any, Optional
 import os
 
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# 配置日志 - 使用应用统一的日志配置
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')  # 注释掉避免冲突
 logger = logging.getLogger(__name__)
 
 class ConfigManagerUI:

@@ -61,7 +61,6 @@ data_analysis/
 ├── README.md              # 项目说明文档
 ├── config/                # 配置文件目录
 │   ├── config.json        # 主配置文件
-│   ├── config_template.json # 配置模板
 │   └── version_info.txt   # 版本信息文件
 ├── scripts/               # 构建和脚本文件目录
 │   ├── build_optimized.py # 🚀 优化构建脚本
@@ -314,7 +313,7 @@ python -c "import json; print('Valid JSON' if json.load(open('your_file.json', '
 **配置修复步骤**:
 1. 打开程序 → 工具 → 配置管理
 2. 点击"重置为默认配置"
-3. 或手动编辑 `config.json`，参考 `config_template.json`
+3. 或手动编辑 `config.json`
 
 **配置文件位置**: `./config.json`
 </details>

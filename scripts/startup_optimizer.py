@@ -90,8 +90,8 @@ class StartupOptimizer:
             
         import logging
         
-        # 设置日志级别以减少I/O
-        logging.getLogger().setLevel(logging.WARNING)
+        # 设置日志级别以减少I/O（但保留INFO级别用于应用日志）
+        # logging.getLogger().setLevel(logging.WARNING)  # 注释掉，让应用自己管理日志级别
         
         # 禁用不必要的日志记录器
         logging.getLogger('tkinter').setLevel(logging.ERROR)
