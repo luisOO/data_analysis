@@ -30,7 +30,7 @@
           "total": ["totalCgp", "arCapitalTakesUpCostSoftware"],
           "boq": ["totalCgp"],
           "model": ["totalCgp"],
-          "part": []
+          "part": ["partCode", "productName","capitalOccupation", "regionGrossMarginHardware"]
         }
       }
     ]

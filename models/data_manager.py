@@ -1,11 +1,11 @@
 import json
 import os
 import logging
-import pandas as pd
 import psutil
 import gc
 from functools import lru_cache
 from utils.validation_utils import ValidationUtils
+from utils.lightweight_data import pd
 
 
 class DataManager:
@@ -141,6 +141,11 @@ class DataManager:
             return pd.DataFrame()
         
         if not self._validate_input(columns, (list, tuple), "列配置"):
+            return pd.DataFrame()
+        
+        # 验证数据是否已加载
+        if not self.data:
+            logging.warning("数据未加载，无法创建DataFrame")
             return pd.DataFrame()
         
         try:
@@ -283,22 +288,23 @@ class DataManager:
             return 0
     
     def _optimize_dataframe_memory(self, df):
-        """优化DataFrame的内存使用"""
+        """优化DataFrame的内存使用（轻量化版本）"""
         try:
+            if df.empty:
+                return df
+                
             initial_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
             
             # 优化数值类型
-            for col in df.select_dtypes(include=['int64']).columns:
+            int_columns = df.select_dtypes(include=['int64']).columns
+            for col in int_columns:
                 df[col] = pd.to_numeric(df[col], downcast='integer')
             
-            for col in df.select_dtypes(include=['float64']).columns:
+            float_columns = df.select_dtypes(include=['float64']).columns
+            for col in float_columns:
                 df[col] = pd.to_numeric(df[col], downcast='float')
             
-            # 优化字符串类型
-            for col in df.select_dtypes(include=['object']).columns:
-                if df[col].nunique() / len(df) < 0.5:  # 如果唯一值比例小于50%，转换为category
-                    df[col] = df[col].astype('category')
-            
+            # 简化的内存优化，不进行复杂的category转换
             final_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
             memory_saved = initial_memory - final_memory
             

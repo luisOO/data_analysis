@@ -2,7 +2,7 @@
 # 安装命令: pip install -r requirements.txt
 
 # 核心依赖
-pandas>=1.5.0          # 数据处理和分析
+# pandas>=1.5.0        # 已替换为轻量化数据处理模块
 psutil>=5.9.0           # 系统监控和内存优化
 tksheet>=7.0.0          # 高级表格组件，支持复制、选择等功能
 
