@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import logging
 import os
+import sys
 from models import ConfigManager, DataManager
 from views import MainAppView
 from utils import DataUtils
@@ -15,8 +16,21 @@ class AppController:
         self.logger.info("应用程序启动")
         
         try:
-            # 加载配置文件
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.json')
+            # 加载配置文件 - 动态优先级加载
+            if getattr(sys, 'frozen', False):
+                # EXE环境：优先读取EXE同目录的config.json，如果不存在则读取打包内的
+                external_config = os.path.join(os.path.dirname(sys.executable), 'config.json')
+                if os.path.exists(external_config):
+                    config_path = external_config
+                    self.logger.info(f"使用外部配置文件: {config_path}")
+                else:
+                    # 读取打包内的config.json（通过sys._MEIPASS访问）
+                    config_path = os.path.join(sys._MEIPASS, 'config.json')
+                    self.logger.info(f"使用打包内配置文件: {config_path}")
+            else:
+                # 开发环境：配置文件在config目录
+                config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.json')
+                self.logger.info(f"开发环境配置文件: {config_path}")
             self.config_manager = ConfigManager(config_path)
             self.data_manager = DataManager(config_manager=self.config_manager)
             self.view = MainAppView(self)
@@ -61,7 +75,16 @@ class AppController:
             self.logger.error(f"初始化因子分类框架失败: {e}")
     
     def run(self):
-        self.view.mainloop()
+        """运行应用程序主循环"""
+        try:
+            self.logger.info("开始运行应用程序主循环")
+            self.view.mainloop()
+            self.logger.info("应用程序主循环结束")
+        except Exception as e:
+            self.logger.error(f"应用程序运行时出错: {e}")
+            import traceback
+            self.logger.error(f"错误详情: {traceback.format_exc()}")
+            raise
         
     def load_default_data(self):
         """程序启动时加载默认示例数据"""

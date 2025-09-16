@@ -1,12 +1,19 @@
 import logging
 import os
+import sys
 from datetime import datetime
 
 
 def setup_logging():
     """设置日志系统"""
-    # 创建logs目录
-    log_dir = 'logs'
+    # 创建logs目录 - 适配EXE环境
+    if getattr(sys, 'frozen', False):
+        # EXE环境：logs目录在EXE同目录
+        log_dir = os.path.join(os.path.dirname(sys.executable), 'logs')
+    else:
+        # 开发环境：logs目录在项目根目录
+        log_dir = 'logs'
+    
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     
