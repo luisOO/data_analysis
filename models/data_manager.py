@@ -179,6 +179,9 @@ class DataManager:
             # 内存优化：优化数据类型
             df = self._optimize_dataframe_memory(df)
             
+            # 数值精度优化：将数字列转换为decimal类型
+            df = self._convert_numeric_to_decimal(df)
+            
             # 记录内存使用情况
             final_memory = self._get_memory_usage()
             memory_diff = final_memory - initial_memory
@@ -316,6 +319,27 @@ class DataManager:
             logging.error(f"DataFrame内存优化失败: {e}")
             return df
     
+    def _convert_numeric_to_decimal(self, df):
+        """将DataFrame中的数字列转换为decimal类型，提高精度
+        
+        Args:
+            df: 要转换的DataFrame
+            
+        Returns:
+            转换后的DataFrame
+        """
+        if df.empty:
+            return df
+        
+        try:
+            # 调用LightweightDataFrame的convert_numeric_to_decimal方法
+            df.convert_numeric_to_decimal()
+            logging.info("数字列已转换为decimal类型，提高了数值精度")
+            return df
+        except Exception as e:
+            logging.warning(f"数字列转换为decimal类型失败: {e}")
+            return df
+    
     def _process_large_dataset(self, nodes, columns, chunk_size):
         """分块处理大数据集"""
         try:
@@ -337,6 +361,8 @@ class DataManager:
                 if chunk_records:
                     chunk_df = pd.DataFrame(chunk_records)
                     chunk_df = self._optimize_dataframe_memory(chunk_df)
+                    # 数值精度优化：将数字列转换为decimal类型
+                    chunk_df = self._convert_numeric_to_decimal(chunk_df)
                     dataframes.append(chunk_df)
                 
                 # 强制垃圾回收

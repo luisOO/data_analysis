@@ -140,6 +140,73 @@ class LightweightDataFrame:
                     return False
         
         return True
+    
+    def convert_numeric_to_decimal(self, columns=None, precision=28, scale=10):
+        """将数字列转换为decimal类型，提高精度
+        
+        Args:
+            columns: 要转换的列名列表，如果为None则转换所有数字列
+            precision: decimal总位数（默认28位）
+            scale: decimal小数位数（默认10位）
+            
+        Returns:
+            转换后的DataFrame（原地修改）
+        """
+        from decimal import Decimal
+        import logging
+        
+        if not self.data:
+            return self
+        
+        # 如果没有指定列，自动检测数字列
+        if columns is None:
+            columns = []
+            sample_row = self.data[0] if self.data else {}
+            for col in self.columns:
+                if col in sample_row:
+                    value = sample_row[col]
+                    if isinstance(value, (int, float)) or (
+                        isinstance(value, str) and self._is_numeric_string(value)
+                    ):
+                        columns.append(col)
+        
+        # 转换指定列
+        converted_count = 0
+        for col in columns:
+            if col in self.columns:
+                try:
+                    # 获取列数据
+                    column_data = self[col]
+                    # 使用LightweightDataUtils的to_decimal方法转换
+                    decimal_data = LightweightDataUtils.to_decimal(
+                        column_data, precision, scale
+                    )
+                    
+                    # 更新数据
+                    for i, decimal_value in enumerate(decimal_data):
+                        if i < len(self.data):
+                            self.data[i][col] = decimal_value
+                    
+                    converted_count += 1
+                    logging.info(f"列 '{col}' 已转换为decimal类型")
+                    
+                except Exception as e:
+                    logging.warning(f"转换列 '{col}' 为decimal时出错: {e}")
+        
+        if converted_count > 0:
+            logging.info(f"成功将 {converted_count} 个数字列转换为decimal类型")
+        
+        return self
+    
+    def _is_numeric_string(self, value):
+        """检查字符串是否为数字"""
+        if not isinstance(value, str):
+            return False
+        try:
+            float(value.strip())
+            return True
+        except (ValueError, TypeError):
+            return False
 
 
 class LightweightDataUtils:
@@ -209,6 +276,48 @@ class LightweightDataUtils:
     def isna(value):
         """检查值是否为空"""
         return not LightweightDataUtils.notna(value)
+    
+    @staticmethod
+    def to_decimal(series, precision=28, scale=10):
+        """转换为decimal类型，提高数值精度
+        
+        Args:
+            series: 要转换的数据序列
+            precision: 总位数（默认28位）
+            scale: 小数位数（默认10位）
+            
+        Returns:
+            转换后的decimal列表
+        """
+        from decimal import Decimal, getcontext, InvalidOperation
+        
+        # 设置decimal精度
+        getcontext().prec = precision
+        
+        result = []
+        for value in series:
+            try:
+                if value is None or value == '' or str(value).lower() == 'nan':
+                    result.append(None)
+                elif isinstance(value, (int, float)):
+                    # 直接从数字转换
+                    result.append(Decimal(str(value)))
+                elif isinstance(value, str):
+                    # 从字符串转换，先清理可能的空格
+                    clean_value = value.strip()
+                    if clean_value:
+                        result.append(Decimal(clean_value))
+                    else:
+                        result.append(None)
+                else:
+                    # 尝试转换其他类型
+                    result.append(Decimal(str(value)))
+            except (ValueError, TypeError, InvalidOperation) as e:
+                # 转换失败时保留原值
+                logging.warning(f"无法将值 '{value}' 转换为Decimal: {e}")
+                result.append(value)
+        
+        return result
 
 
 # 创建全局实例以模拟pandas接口
