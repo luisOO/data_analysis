@@ -16,6 +16,9 @@ class MainAppView(tk.Tk):
         # 设置全局字体和样式
         self.font_config()
         
+        # 创建菜单栏
+        self.create_menu()
+        
         # 设置全局内边距
         self.configure(padx=10, pady=10)
         
@@ -238,6 +241,16 @@ class MainAppView(tk.Tk):
         view_menu = tk.Menu(self.menu_bar, tearoff=0)
         view_menu.add_command(label="刷新", command=lambda: self.controller.refresh_view())
         self.menu_bar.add_cascade(label="视图", menu=view_menu)
+        
+        # 工具菜单
+        tools_menu = tk.Menu(self.menu_bar, tearoff=0)
+        tools_menu.add_command(label="⚙️ 配置管理", command=self.open_config_manager)
+        self.menu_bar.add_cascade(label="工具", menu=tools_menu)
+        
+        # 帮助菜单
+        help_menu = tk.Menu(self.menu_bar, tearoff=0)
+        help_menu.add_command(label="关于", command=self.show_about)
+        self.menu_bar.add_cascade(label="帮助", menu=help_menu)
     
     def show_field_menu(self, event, text):
         """显示字段右键菜单"""
@@ -253,20 +266,10 @@ class MainAppView(tk.Tk):
     def copy_value_to_clipboard(self, text):
         """复制值到剪贴板"""
         try:
-            self.frame.clipboard_clear()
-            self.frame.clipboard_append(str(text))
+            self.clipboard_clear()
+            self.clipboard_append(str(text))
         except:
             pass
-        
-        # 工具菜单
-        tools_menu = tk.Menu(self.menu_bar, tearoff=0)
-        tools_menu.add_command(label="⚙️ 配置管理", command=self.open_config_manager)
-        self.menu_bar.add_cascade(label="工具", menu=tools_menu)
-        
-        # 帮助菜单
-        help_menu = tk.Menu(self.menu_bar, tearoff=0)
-        help_menu.add_command(label="关于", command=self.show_about)
-        self.menu_bar.add_cascade(label="帮助", menu=help_menu)
     
     def show_about(self):
         """显示关于对话框"""
@@ -297,7 +300,7 @@ class MainAppView(tk.Tk):
         """打开配置管理器"""
         try:
             if not hasattr(self, 'config_manager'):
-                self.config_manager = ConfigManagerUI(parent=self)
+                self.config_manager = ConfigManagerUI()
             self.config_manager.open_config_window()
         except Exception as e:
             tk.messagebox.showerror("错误", f"打开配置管理器失败：{e}")

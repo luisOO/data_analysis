@@ -161,7 +161,7 @@ class FactorView:
         """初始化空的数据表格，不显示任何字段"""
         try:
             # 创建完全空白的DataFrame，不显示任何字段
-            import pandas as pd
+            from utils.lightweight_data import pd
             empty_df = pd.DataFrame()
             self.detail_view.display_data_table(empty_df, None, None)
             self.controller.logger.info(f"已初始化空白数据表格")

@@ -1,11 +1,11 @@
 import json
 import os
 import logging
-import pandas as pd
 import psutil
 import gc
 from functools import lru_cache
 from utils.validation_utils import ValidationUtils
+from utils.lightweight_data import pd
 
 
 class DataManager:
@@ -143,6 +143,11 @@ class DataManager:
         if not self._validate_input(columns, (list, tuple), "列配置"):
             return pd.DataFrame()
         
+        # 验证数据是否已加载
+        if not self.data:
+            logging.warning("数据未加载，无法创建DataFrame")
+            return pd.DataFrame()
+        
         try:
             # 内存监控
             initial_memory = self._get_memory_usage()
@@ -173,6 +178,9 @@ class DataManager:
             
             # 内存优化：优化数据类型
             df = self._optimize_dataframe_memory(df)
+            
+            # 数值精度优化：将数字列转换为decimal类型
+            df = self._convert_numeric_to_decimal(df)
             
             # 记录内存使用情况
             final_memory = self._get_memory_usage()
@@ -283,22 +291,23 @@ class DataManager:
             return 0
     
     def _optimize_dataframe_memory(self, df):
-        """优化DataFrame的内存使用"""
+        """优化DataFrame的内存使用（轻量化版本）"""
         try:
+            if df.empty:
+                return df
+                
             initial_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
             
             # 优化数值类型
-            for col in df.select_dtypes(include=['int64']).columns:
+            int_columns = df.select_dtypes(include=['int64']).columns
+            for col in int_columns:
                 df[col] = pd.to_numeric(df[col], downcast='integer')
             
-            for col in df.select_dtypes(include=['float64']).columns:
+            float_columns = df.select_dtypes(include=['float64']).columns
+            for col in float_columns:
                 df[col] = pd.to_numeric(df[col], downcast='float')
             
-            # 优化字符串类型
-            for col in df.select_dtypes(include=['object']).columns:
-                if df[col].nunique() / len(df) < 0.5:  # 如果唯一值比例小于50%，转换为category
-                    df[col] = df[col].astype('category')
-            
+            # 简化的内存优化，不进行复杂的category转换
             final_memory = df.memory_usage(deep=True).sum() / 1024 / 1024
             memory_saved = initial_memory - final_memory
             
@@ -308,6 +317,27 @@ class DataManager:
             return df
         except Exception as e:
             logging.error(f"DataFrame内存优化失败: {e}")
+            return df
+    
+    def _convert_numeric_to_decimal(self, df):
+        """将DataFrame中的数字列转换为decimal类型，提高精度
+        
+        Args:
+            df: 要转换的DataFrame
+            
+        Returns:
+            转换后的DataFrame
+        """
+        if df.empty:
+            return df
+        
+        try:
+            # 调用LightweightDataFrame的convert_numeric_to_decimal方法
+            df.convert_numeric_to_decimal()
+            logging.info("数字列已转换为decimal类型，提高了数值精度")
+            return df
+        except Exception as e:
+            logging.warning(f"数字列转换为decimal类型失败: {e}")
             return df
     
     def _process_large_dataset(self, nodes, columns, chunk_size):
@@ -331,6 +361,8 @@ class DataManager:
                 if chunk_records:
                     chunk_df = pd.DataFrame(chunk_records)
                     chunk_df = self._optimize_dataframe_memory(chunk_df)
+                    # 数值精度优化：将数字列转换为decimal类型
+                    chunk_df = self._convert_numeric_to_decimal(chunk_df)
                     dataframes.append(chunk_df)
                 
                 # 强制垃圾回收

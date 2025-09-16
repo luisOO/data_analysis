@@ -1,7 +1,7 @@
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import messagebox
-import pandas as pd
+from utils.lightweight_data import pd
 
 class SubFactorDetailView:
     def __init__(self, parent_frame, controller):

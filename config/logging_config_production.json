@@ -1,0 +1,12 @@
+{
+  "enable_file_logging": false,
+  "log_level": "WARNING",
+  "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+  "console_logging": false,
+  "log_file_name_format": "app_{date}.log",
+  "description": {
+    "enable_file_logging": "生产环境默认禁用文件日志以提升性能",
+    "log_level": "生产环境使用WARNING级别减少日志输出",
+    "console_logging": "生产环境禁用控制台输出（GUI应用）"
+  }
+}
