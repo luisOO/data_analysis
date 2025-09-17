@@ -141,7 +141,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # 可添加图标: 'assets/icon.ico'
+    icon=None,  # 使用系统默认图标（SVG格式不被PyInstaller支持）
     version_file='../config/version_info.txt',  # 详细版本信息，提升杀毒软件信任度
     
     # 防误杀和兼容性配置
