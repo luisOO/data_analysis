@@ -6,8 +6,8 @@ VSVersionInfo(
   ffi=FixedFileInfo(
     # filevers and prodvers should be always a tuple with four items: (1, 2, 3, 4)
     # Set not needed items to zero 0.
-    filevers=(1,2,11,0),
-    prodvers=(1,2,11,0),
+    filevers=(1,2,13,0),
+    prodvers=(1,2,13,0),
     # Contains a bitmask that specifies the valid bits 'flags'r
     mask=0x3f,
     # Contains a bitmask that specifies the Boolean attributes of the file.
@@ -30,13 +30,17 @@ VSVersionInfo(
       StringTable(
         u'040904B0',
         [StringStruct(u'CompanyName', u'CalcAny Development Team'),
-        StringStruct(u'FileDescription', u'CalcAny - 数据计算分析工具'),
-        StringStruct(u'FileVersion', u'1.0.0.0'),
+        StringStruct(u'FileDescription', u'CalcAny - 专业数据计算分析工具'),
+        StringStruct(u'FileVersion', u'1.2.13.0'),
         StringStruct(u'InternalName', u'CalcAny'),
-        StringStruct(u'LegalCopyright', u'Copyright © 2025 CalcAny Development Team'),
+        StringStruct(u'LegalCopyright', u'Copyright © 2025 CalcAny Development Team. All rights reserved.'),
+        StringStruct(u'LegalTrademarks', u'CalcAny™'),
         StringStruct(u'OriginalFilename', u'CalcAny.exe'),
-        StringStruct(u'ProductName', u'CalcAny'),
-        StringStruct(u'ProductVersion', u'1.0.0.0')])
+        StringStruct(u'ProductName', u'CalcAny Data Analysis Tool'),
+        StringStruct(u'ProductVersion', u'1.2.13.0'),
+        StringStruct(u'Comments', u'Professional data calculation and analysis software'),
+        StringStruct(u'PrivateBuild', u''),
+        StringStruct(u'SpecialBuild', u'')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]

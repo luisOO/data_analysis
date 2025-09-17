@@ -5,8 +5,8 @@
 """
 
 import logging
-import pandas as pd
 from typing import Dict, Any, List, Optional
+from .lightweight_data import pd
 
 
 class DataUtils:
@@ -48,7 +48,7 @@ class DataUtils:
     
     @staticmethod
     def optimize_dataframe_memory(df):
-        """优化DataFrame内存使用
+        """优化DataFrame内存使用（轻量化版本）
         
         Args:
             df: 要优化的DataFrame
@@ -60,18 +60,13 @@ class DataUtils:
             return df
             
         # 优化数值类型
-        for col in df.select_dtypes(include=['int64']).columns:
+        int_columns = df.select_dtypes(include=['int64']).columns
+        for col in int_columns:
             df[col] = pd.to_numeric(df[col], downcast='integer')
             
-        for col in df.select_dtypes(include=['float64']).columns:
+        float_columns = df.select_dtypes(include=['float64']).columns
+        for col in float_columns:
             df[col] = pd.to_numeric(df[col], downcast='float')
             
-        # 优化字符串类型
-        for col in df.select_dtypes(include=['object']).columns:
-            if df[col].dtype == 'object':
-                try:
-                    df[col] = df[col].astype('category')
-                except:
-                    pass
-                    
+        # 简化的字符串处理，不进行复杂的category转换
         return df

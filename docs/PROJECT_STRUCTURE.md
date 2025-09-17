@@ -7,12 +7,25 @@
 ```
 data_analysis/
 ├── main.py                    # 应用程序入口点
-├── config.json               # 应用配置文件
-├── config_manager_ui.py      # 配置管理UI组件
+├── config_manager_ui.py      # 配置管理UI组件（通过主程序菜单访问）
+├── sample.json               # 示例数据文件
+├── requirements.txt          # 项目依赖列表
+├── config/                   # 配置文件目录
+│   ├── config.json          # 主应用配置文件
+│   └── logging_config.json  # 日志配置文件
+├── scripts/                  # 构建和脚本文件
+│   ├── build_optimized.py   # 优化构建脚本
+│   ├── startup_optimizer.py # 启动性能优化器
+│   └── calc_any.spec        # PyInstaller打包配置
+├── docs/                     # 文档目录
+│   ├── README_EXE.md        # EXE使用说明
+│   ├── CHANGELOG.md         # 更新日志
+│   ├── PROJECT_STRUCTURE.md # 项目结构说明
+│   └── EXE_OPTIMIZATION_GUIDE.md # EXE优化指南
 ├── controllers/              # 控制器层
 │   ├── __init__.py
 │   ├── app_controller.py     # 主应用控制器
-│   └── logging_setup.py      # 日志配置
+│   └── logging_setup.py      # 日志配置管理器
 ├── models/                   # 数据模型层
 │   ├── __init__.py
 │   ├── config_manager.py     # 配置管理器
@@ -29,7 +42,7 @@ data_analysis/
 │   ├── data_utils.py         # 数据处理工具
 │   ├── clipboard_utils.py    # 剪贴板工具
 │   └── logging_utils.py      # 日志工具
-└── logs/                     # 日志文件目录
+└── logs/                     # 日志文件目录（根据配置动态创建）
 ```
 
 ## 模块依赖关系
@@ -45,7 +58,7 @@ data_analysis/
 
 #### Controllers（控制器层）
 - `app_controller.py`: 主应用逻辑控制，协调模型和视图
-- `logging_setup.py`: 统一的日志配置管理
+- `logging_setup.py`: 统一的日志配置管理，支持环境区分和动态配置
 
 #### Models（模型层）
 - `config_manager.py`: 配置文件的加载、验证和管理
@@ -62,6 +75,15 @@ data_analysis/
 - `data_utils.py`: 数据转换和DataFrame优化
 - `clipboard_utils.py`: 剪贴板操作功能
 - `logging_utils.py`: 日志记录和错误处理
+
+#### Scripts（构建脚本层）
+- `build_optimized.py`: 优化构建脚本，支持生产环境配置
+- `startup_optimizer.py`: 启动性能优化器
+- `calc_any.spec`: PyInstaller打包配置文件
+
+#### Config（配置文件）
+- `config.json`: 主应用配置，包含业务逻辑配置
+- `logging_config.json`: 日志配置，支持开发和生产环境区分
 
 ## 设计原则
 

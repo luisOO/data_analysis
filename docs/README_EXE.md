@@ -71,7 +71,7 @@
 ### 打包信息
 - **打包工具**: PyInstaller 6.15.0
 - **Python版本**: 3.12
-- **主要依赖**: tkinter, pandas, numpy, psutil
+- **主要依赖**: tkinter, psutil, tksheet
 - **打包模式**: 单文件模式（所有依赖打包在一个exe中）
 
 ### 安全特性

@@ -2,3 +2,7 @@
 *.log
 project_rules.md
 settings.json
+# 排除build目录下的所有文件
+build/
+# 排除dist目录下的所有文件
+dist/
