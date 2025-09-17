@@ -283,13 +283,22 @@ class AppController:
     def reload_config(self):
         """重新加载配置文件"""
         try:
-            # 重新创建配置管理器
+            # 保存旧配置和配置文件路径
             old_config = self.config_manager.config.copy() if hasattr(self.config_manager, 'config') else {}
-            self.config_manager = ConfigManager()
+            config_path = self.config_manager.config_path
+            
+            # 重新加载配置文件
+            if config_path:
+                self.config_manager.reload_config()
+                # 同时更新数据管理器的配置管理器引用
+                self.data_manager.config_manager = self.config_manager
+            else:
+                self.logger.warning("配置文件路径未设置，无法重新加载配置")
+                return False
             
             # 记录配置变化
             new_config = self.config_manager.config
-            self.logger.info("配置文件已重新加载")
+            self.logger.info(f"配置文件已重新加载: {config_path}")
             
             # 检查是否有重要配置变化
             config_changed = False

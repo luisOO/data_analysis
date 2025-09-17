@@ -19,11 +19,12 @@ logger = logging.getLogger(__name__)
 class ConfigManagerUI:
     """配置管理界面类"""
     
-    def __init__(self, config_path: str = "config/config.json"):
+    def __init__(self, config_path: str = "config/config.json", app_controller=None):
         self.config_path = config_path
         self.config_data = {}
         self.root = None
         self.notebook = None
+        self.app_controller = app_controller  # 保存主应用控制器引用
         
         # UI组件引用
         self.document_fields_listbox = None
@@ -33,6 +34,12 @@ class ConfigManagerUI:
         
         # 加载配置
         self.load_config()
+        
+        # 密码验证状态
+        self.password_verified = False
+        
+        # 字段配置页面内容加载状态
+        self.display_names_content_loaded = False
     
     def load_config(self):
         """加载配置文件"""
@@ -80,6 +87,34 @@ class ConfigManagerUI:
             "display_names": {}
         }
     
+    def verify_password(self):
+        """验证密码"""
+        if self.password_verified:
+            return True
+        
+        password = simpledialog.askstring("密码验证", "请输入密码访问字段配置页面:", show='*')
+        if password == "12345678":  # 可以从配置文件读取或使用更安全的方式
+            self.password_verified = True
+            return True
+        else:
+            messagebox.showerror("错误", "密码错误！", parent=self.root)
+            return False
+    
+    def on_tab_changed(self, event):
+        """标签切换事件处理"""
+        selected_tab = self.notebook.select()
+        tab_text = self.notebook.tab(selected_tab, "text")
+        
+        # 如果切换到字段配置页面，进行密码验证
+        if tab_text == "字段配置":
+            if not self.verify_password():
+                # 密码验证失败，切换回第一个标签
+                self.notebook.select(0)
+                return
+            
+            # 密码验证成功，确保字段配置页面内容已加载
+            self.ensure_display_names_content()
+    
     def open_config_window(self):
         """打开配置管理窗口"""
         if self.root is not None:
@@ -108,6 +143,9 @@ class ConfigManagerUI:
         self.notebook = ttk.Notebook(main_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         
+        # 绑定标签切换事件
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        
         # 创建各个配置页面
         self.create_document_info_tab()
         self.create_hierarchy_tab()
@@ -122,7 +160,7 @@ class ConfigManagerUI:
     def create_document_info_tab(self):
         """创建整单基本信息配置页面"""
         tab_frame = ttk.Frame(self.notebook)
-        self.notebook.add(tab_frame, text="整单基本信息字段")
+        self.notebook.add(tab_frame, text="整单基本信息配置")
         
         # 说明标签
         info_label = ttk.Label(tab_frame, text="配置整单基本信息需要显示的字段", font=('Arial', 10, 'bold'))
@@ -261,16 +299,33 @@ class ConfigManagerUI:
         self.refresh_factor_tree()
     
     def create_display_names_tab(self):
-        """创建字段显示名称配置页面"""
-        tab_frame = ttk.Frame(self.notebook)
-        self.notebook.add(tab_frame, text="字段显示名称")
+        """创建字段配置页面"""
+        self.display_names_tab_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.display_names_tab_frame, text="字段配置")
+        
+        # 初始显示提示信息，内容将在首次访问时加载
+        self.display_names_placeholder = ttk.Label(self.display_names_tab_frame, 
+                                                  text="请点击此标签页进行密码验证后访问字段配置", 
+                                                  font=('Arial', 12), foreground='gray')
+        self.display_names_placeholder.pack(expand=True)
+        
+        # 标记内容是否已加载
+        self.display_names_content_loaded = False
+        
+    def ensure_display_names_content(self):
+        """确保字段配置页面内容已加载"""
+        if self.display_names_content_loaded:
+            return
+        
+        # 移除占位符
+        self.display_names_placeholder.destroy()
         
         # 说明标签
-        info_label = ttk.Label(tab_frame, text="配置字段的中文显示名称", font=('Arial', 10, 'bold'))
+        info_label = ttk.Label(self.display_names_tab_frame, text="配置字段的显示名称和作用范围", font=('Arial', 10, 'bold'))
         info_label.pack(pady=(10, 5))
         
         # 主容器
-        main_container = ttk.Frame(tab_frame)
+        main_container = ttk.Frame(self.display_names_tab_frame)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # 搜索框
@@ -283,15 +338,17 @@ class ConfigManagerUI:
         search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
         search_entry.bind('<KeyRelease>', self.filter_display_names)
         
-        # 显示名称树
+        # 显示名称树（三列：字段名、显示名称、作用范围）
         tree_frame = ttk.Frame(main_container)
         tree_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.display_names_tree = ttk.Treeview(tree_frame, columns=("field", "display_name"), show="headings")
-        self.display_names_tree.heading("field", text="字段名")
+        self.display_names_tree = ttk.Treeview(tree_frame, columns=("field_name", "display_name", "scope"), show="headings")
+        self.display_names_tree.heading("field_name", text="字段名")
         self.display_names_tree.heading("display_name", text="显示名称")
-        self.display_names_tree.column("field", width=200)
+        self.display_names_tree.heading("scope", text="作用范围")
+        self.display_names_tree.column("field_name", width=200)
         self.display_names_tree.column("display_name", width=200)
+        self.display_names_tree.column("scope", width=150)
         
         tree_scrollbar2 = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.display_names_tree.yview)
         self.display_names_tree.configure(yscrollcommand=tree_scrollbar2.set)
@@ -302,16 +359,18 @@ class ConfigManagerUI:
         # 双击编辑
         self.display_names_tree.bind('<Double-1>', self.edit_display_name)
         
-        # 底部按钮
+        # 底部按钮（去掉批量导入）
         button_frame = ttk.Frame(main_container)
         button_frame.pack(fill=tk.X, pady=(5, 0))
         
         ttk.Button(button_frame, text="添加字段", command=self.add_display_name).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="删除字段", command=self.delete_display_name).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="批量导入", command=self.batch_import_display_names).pack(side=tk.LEFT)
         
         # 加载显示名称数据
         self.refresh_display_names()
+        
+        # 标记内容已加载
+        self.display_names_content_loaded = True
     
     def create_bottom_buttons(self, parent):
         """创建底部按钮"""
@@ -329,21 +388,101 @@ class ConfigManagerUI:
         """刷新整单基本信息字段列表"""
         self.document_fields_listbox.delete(0, tk.END)
         fields = self.config_data.get("document_info_fields", [])
+        display_names = self.config_data.get("display_names", {})
+        
         for field in fields:
-            display_name = self.config_data.get("display_names", {}).get(field, field)
-            self.document_fields_listbox.insert(tk.END, f"{field} ({display_name})")
+            field_config = display_names.get(field, field)
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field)
+            else:
+                # 兼容旧格式
+                display_name = field_config
+            
+            self.document_fields_listbox.insert(tk.END, display_name)
     
     def add_document_field(self):
         """添加整单基本信息字段"""
-        field = simpledialog.askstring("添加字段", "请输入字段名:")
-        if field and field.strip():
-            field = field.strip()
-            if field not in self.config_data.get("document_info_fields", []):
-                self.config_data.setdefault("document_info_fields", []).append(field)
-                self.refresh_document_fields()
-                logger.info(f"添加整单字段: {field}")
+        # 获取作用范围为整单基本信息的字段
+        display_names = self.config_data.get("display_names", {})
+        available_fields = []
+        
+        for field_name, field_config in display_names.items():
+            if isinstance(field_config, dict):
+                if field_config.get('scope') == '整单基本信息':
+                    display_name = field_config.get('display_name', field_name)
+                    available_fields.append((field_name, display_name))
             else:
-                messagebox.showwarning("警告", "字段已存在！")
+                # 兼容旧格式，默认为整单基本信息
+                available_fields.append((field_name, field_config))
+        
+        if not available_fields:
+            messagebox.showwarning("警告", "没有可用的整单基本信息字段！\n请先在字段配置页面添加作用范围为'整单基本信息'的字段。")
+            return
+        
+        # 创建字段选择弹窗
+        dialog = tk.Toplevel(self.root)
+        dialog.title("选择字段")
+        dialog.geometry("400x300")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (300 // 2)
+        dialog.geometry(f"400x300+{x}+{y}")
+        
+        # 说明标签
+        ttk.Label(dialog, text="选择要添加的整单基本信息字段:", font=('Arial', 10, 'bold')).pack(pady=(20, 10))
+        
+        # 字段列表
+        listbox_frame = ttk.Frame(dialog)
+        listbox_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        field_listbox = tk.Listbox(listbox_frame)
+        scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=field_listbox.yview)
+        field_listbox.configure(yscrollcommand=scrollbar.set)
+        
+        # 填充可用字段（只显示显示名称）
+        field_mapping = {}
+        current_fields = self.config_data.get("document_info_fields", [])
+        
+        for field_name, display_name in available_fields:
+            if field_name not in current_fields:  # 只显示未添加的字段
+                field_listbox.insert(tk.END, display_name)
+                field_mapping[display_name] = field_name
+        
+        field_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        if field_listbox.size() == 0:
+            field_listbox.insert(tk.END, "所有整单基本信息字段都已添加")
+            field_listbox.config(state=tk.DISABLED)
+        
+        # 按钮框架
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(pady=20)
+        
+        def add_selected_field():
+            selection = field_listbox.curselection()
+            if selection and field_listbox.size() > 0 and field_listbox.get(0) != "所有整单基本信息字段都已添加":
+                display_name = field_listbox.get(selection[0])
+                field_name = field_mapping.get(display_name)
+                
+                if field_name:
+                    self.config_data.setdefault("document_info_fields", []).append(field_name)
+                    self.refresh_document_fields()
+                    logger.info(f"添加整单字段: {field_name} ({display_name})")
+                    dialog.destroy()
+            else:
+                messagebox.showwarning("警告", "请选择一个字段！")
+        
+        ttk.Button(button_frame, text="添加", command=add_selected_field).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        
+        # 双击添加
+        field_listbox.bind('<Double-1>', lambda e: add_selected_field())
     
     def remove_document_field(self):
         """删除整单基本信息字段"""
@@ -351,10 +490,19 @@ class ConfigManagerUI:
         if selection:
             index = selection[0]
             field = self.config_data.get("document_info_fields", [])[index]
-            if messagebox.askyesno("确认删除", f"确定要删除字段 '{field}' 吗？"):
+            
+            # 获取显示名称用于确认对话框
+            display_names = self.config_data.get("display_names", {})
+            field_config = display_names.get(field, field)
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field)
+            else:
+                display_name = field_config
+            
+            if messagebox.askyesno("确认删除", f"确定要删除字段 '{display_name}' 吗？", parent=self.root):
                 self.config_data.get("document_info_fields", []).pop(index)
                 self.refresh_document_fields()
-                logger.info(f"删除整单字段: {field}")
+                logger.info(f"删除整单字段: {field} ({display_name})")
     
     def move_document_field(self, direction):
         """移动整单基本信息字段位置"""
@@ -374,18 +522,17 @@ class ConfigManagerUI:
         selection = self.document_fields_listbox.curselection()
         if selection:
             index = selection[0]
-            old_field = self.config_data.get("document_info_fields", [])[index]
-            new_field = simpledialog.askstring("编辑字段", "请输入新的字段名:", initialvalue=old_field)
+            field = self.config_data.get("document_info_fields", [])[index]
             
-            if new_field and new_field.strip() and new_field.strip() != old_field:
-                new_field = new_field.strip()
-                if new_field not in self.config_data.get("document_info_fields", []):
-                    self.config_data.get("document_info_fields", [])[index] = new_field
-                    self.refresh_document_fields()
-                    self.document_fields_listbox.selection_set(index)
-                    logger.info(f"编辑整单字段: {old_field} -> {new_field}")
-                else:
-                    messagebox.showwarning("警告", "字段已存在！")
+            # 获取显示名称
+            display_names = self.config_data.get("display_names", {})
+            field_config = display_names.get(field, field)
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field)
+            else:
+                display_name = field_config
+            
+            messagebox.showinfo("提示", f"要编辑字段 '{display_name}' 的显示名称或作用范围，请到'字段配置'页面进行操作。")
     
     # ==================== 因子分类操作 ====================
     
@@ -510,7 +657,7 @@ class ConfigManagerUI:
         item_text = self.factor_tree.item(item, "text")
         item_values = self.factor_tree.item(item, "values")
         
-        if messagebox.askyesno("确认删除", f"确定要删除 '{item_text}' 吗？"):
+        if messagebox.askyesno("确认删除", f"确定要删除 '{item_text}' 吗？", parent=self.root):
             if item_values[0] == "分类":
                 # 删除分类
                 self.config_data.get("factor_categories", {}).pop(item_text, None)
@@ -732,11 +879,25 @@ class ConfigManagerUI:
         
         # 加载显示名称
         display_names = self.config_data.get("display_names", {})
+        # 添加调试日志
+        logger.info(f"刷新显示名称列表 - 配置数据: {display_names}")
         search_text = self.search_var.get().lower() if hasattr(self, 'search_var') else ""
         
-        for field, display_name in sorted(display_names.items()):
-            if not search_text or search_text in field.lower() or search_text in display_name.lower():
-                self.display_names_tree.insert("", tk.END, values=(field, display_name))
+        for field, field_config in sorted(display_names.items()):
+            # 兼容新旧格式
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field)
+                scope = field_config.get('scope', '整单基本信息')
+            else:
+                # 兼容旧格式
+                display_name = field_config
+                scope = '整单基本信息'
+            
+            # 搜索过滤
+            if not search_text or search_text in field.lower() or search_text in display_name.lower() or search_text in scope.lower():
+                # 显示三列数据：字段名、显示名称、作用范围
+                item_id = self.display_names_tree.insert("", tk.END, values=(field, display_name, scope))
+                # 注意：由于使用show="headings"，不能设置#0列，字段名已经在values中
     
     def filter_display_names(self, event=None):
         """过滤显示名称"""
@@ -744,43 +905,266 @@ class ConfigManagerUI:
     
     def add_display_name(self):
         """添加显示名称"""
-        field = simpledialog.askstring("添加字段", "请输入字段名:")
-        if field and field.strip():
-            field = field.strip()
-            display_name = simpledialog.askstring("设置显示名称", f"请输入字段 '{field}' 的显示名称:")
-            if display_name and display_name.strip():
-                self.config_data.setdefault("display_names", {})[field] = display_name.strip()
-                self.refresh_display_names()
-                logger.info(f"添加显示名称: {field} -> {display_name}")
+        # 创建添加字段的弹窗
+        dialog = tk.Toplevel(self.root)
+        dialog.title("添加字段配置")
+        dialog.geometry("450x280")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (280 // 2)
+        dialog.geometry(f"450x280+{x}+{y}")
+        
+        # 主框架
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 标题
+        title_label = ttk.Label(main_frame, text="添加新字段配置", font=('Arial', 12, 'bold'))
+        title_label.pack(pady=(0, 20))
+        
+        # 字段名输入框
+        field_frame = ttk.Frame(main_frame)
+        field_frame.pack(fill=tk.X, pady=(0, 15))
+        ttk.Label(field_frame, text="字段名:", width=12, anchor='w').pack(side=tk.LEFT)
+        field_var = tk.StringVar()
+        field_entry = ttk.Entry(field_frame, textvariable=field_var, width=35)
+        field_entry.pack(side=tk.LEFT, padx=(10, 0))
+        field_entry.focus()
+        
+        # 显示名称输入框
+        display_frame = ttk.Frame(main_frame)
+        display_frame.pack(fill=tk.X, pady=(0, 15))
+        ttk.Label(display_frame, text="显示名称:", width=12, anchor='w').pack(side=tk.LEFT)
+        display_name_var = tk.StringVar()
+        display_name_entry = ttk.Entry(display_frame, textvariable=display_name_var, width=35)
+        display_name_entry.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 作用范围下拉框
+        scope_frame = ttk.Frame(main_frame)
+        scope_frame.pack(fill=tk.X, pady=(0, 20))
+        ttk.Label(scope_frame, text="作用范围:", width=12, anchor='w').pack(side=tk.LEFT)
+        scope_var = tk.StringVar(value="整单基本信息")
+        scope_combo = ttk.Combobox(scope_frame, textvariable=scope_var, 
+                                  values=["整单基本信息", "子因子基本信息", "子因子表格"],
+                                  state="readonly", width=32)
+        scope_combo.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 分隔线
+        separator = ttk.Separator(main_frame, orient='horizontal')
+        separator.pack(fill=tk.X, pady=(10, 20))
+        
+        # 按钮框架
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        def save_field():
+            field = field_var.get().strip()
+            display_name = display_name_var.get().strip()
+            scope = scope_var.get()
+            
+            if not field:
+                messagebox.showerror("输入错误", "请输入字段名", parent=dialog)
+                field_entry.focus()
+                return
+            if not display_name:
+                messagebox.showerror("输入错误", "请输入显示名称", parent=dialog)
+                display_name_entry.focus()
+                return
+            
+            # 检查字段名是否已存在
+            if field in self.config_data.get("display_names", {}):
+                messagebox.showerror("字段重复", f"字段名 '{field}' 已存在，请使用其他名称", parent=dialog)
+                field_entry.focus()
+                field_entry.select_range(0, tk.END)
+                return
+            
+            # 保存到配置
+            self.config_data.setdefault("display_names", {})[field] = {
+                "display_name": display_name,
+                "scope": scope
+            }
+            self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
+            logger.info(f"添加字段配置: {field} -> {display_name} ({scope})")
+            messagebox.showinfo("成功", f"字段 '{field}' 添加成功！", parent=dialog)
+            dialog.destroy()
+        
+        # 右对齐按钮
+        button_right_frame = ttk.Frame(button_frame)
+        button_right_frame.pack(side=tk.RIGHT)
+        
+        ttk.Button(button_right_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=(0, 10))
+        save_btn = ttk.Button(button_right_frame, text="保存", command=save_field)
+        save_btn.pack(side=tk.LEFT)
+        
+        # 绑定回车键和ESC键
+        dialog.bind('<Return>', lambda e: save_field())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+        
+        # 设置默认按钮样式
+        save_btn.focus()
     
     def edit_display_name(self, event=None):
         """编辑显示名称"""
         selection = self.display_names_tree.selection()
         if selection:
             item = selection[0]
+            # 从三列数据获取字段信息
             values = self.display_names_tree.item(item, "values")
-            field, old_display_name = values
+            # 添加调试日志
+            logger.info(f"编辑字段配置 - 选中项数据: {values}")
+            if len(values) >= 3:
+                field, old_display_name, old_scope = values[0], values[1], values[2]
+                logger.info(f"编辑字段配置 - 字段: {field}, 旧显示名称: '{old_display_name}', 旧作用范围: '{old_scope}'")
+            else:
+                return
             
-            new_display_name = simpledialog.askstring("编辑显示名称", 
-                                                     f"请输入字段 '{field}' 的新显示名称:", 
-                                                     initialvalue=old_display_name)
-            if new_display_name and new_display_name.strip() and new_display_name.strip() != old_display_name:
-                self.config_data.setdefault("display_names", {})[field] = new_display_name.strip()
-                self.refresh_display_names()
-                logger.info(f"编辑显示名称: {field} -> {new_display_name}")
+            # 创建编辑弹窗
+            dialog = tk.Toplevel(self.root)
+            dialog.title("编辑字段配置")
+            dialog.geometry("450x280")
+            dialog.resizable(False, False)
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            # 居中显示
+            dialog.update_idletasks()
+            x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+            y = (dialog.winfo_screenheight() // 2) - (280 // 2)
+            dialog.geometry(f"450x280+{x}+{y}")
+            
+            # 主框架
+            main_frame = ttk.Frame(dialog, padding="20")
+            main_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # 标题
+            title_label = ttk.Label(main_frame, text="编辑字段配置", font=('Arial', 12, 'bold'))
+            title_label.pack(pady=(0, 20))
+            
+            # 字段名（只读）
+            field_frame = ttk.Frame(main_frame)
+            field_frame.pack(fill=tk.X, pady=(0, 15))
+            ttk.Label(field_frame, text="字段名:", width=12, anchor='w').pack(side=tk.LEFT)
+            field_label = ttk.Label(field_frame, text=field, font=('Arial', 10, 'bold'), 
+                                   foreground='#666666', background='#f0f0f0', 
+                                   relief='sunken', padding=(5, 2))
+            field_label.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
+            
+            # 显示名称输入框
+            display_frame = ttk.Frame(main_frame)
+            display_frame.pack(fill=tk.X, pady=(0, 15))
+            ttk.Label(display_frame, text="显示名称:", width=12, anchor='w').pack(side=tk.LEFT)
+            display_name_var = tk.StringVar(value=old_display_name)
+            display_name_entry = ttk.Entry(display_frame, textvariable=display_name_var, width=35)
+            display_name_entry.pack(side=tk.LEFT, padx=(10, 0))
+            # 确保Entry显示初始值（参考作用范围的做法）
+            display_name_entry.insert(0, old_display_name)
+            display_name_entry.delete(0, tk.END)
+            display_name_entry.insert(0, old_display_name)
+            display_name_entry.focus()
+            display_name_entry.select_range(0, tk.END)
+            
+            # 添加详细调试日志（在设置值之后）
+            logger.info(f"[调试] 初始化显示名称输入框 - StringVar设置后值: '{display_name_var.get()}', Entry显示值: '{display_name_entry.get()}'")
+            
+            # 绑定输入框变化事件来监控输入
+            def on_entry_change(*args):
+                logger.info(f"[调试] 输入框内容变化 - StringVar值: '{display_name_var.get()}', Entry值: '{display_name_entry.get()}'")
+            
+            display_name_var.trace('w', on_entry_change)
+            
+            # 作用范围下拉框
+            scope_frame = ttk.Frame(main_frame)
+            scope_frame.pack(fill=tk.X, pady=(0, 20))
+            ttk.Label(scope_frame, text="作用范围:", width=12, anchor='w').pack(side=tk.LEFT)
+            scope_var = tk.StringVar(value=old_scope)
+            scope_combo = ttk.Combobox(scope_frame, textvariable=scope_var, 
+                                      values=["整单基本信息", "子因子基本信息", "子因子表格"],
+                                      state="readonly", width=32)
+            scope_combo.pack(side=tk.LEFT, padx=(10, 0))
+            # 确保Combobox显示初始值
+            scope_combo.set(old_scope)
+            
+            # 分隔线
+            separator = ttk.Separator(main_frame, orient='horizontal')
+            separator.pack(fill=tk.X, pady=(10, 20))
+            
+            # 按钮框架
+            button_frame = ttk.Frame(main_frame)
+            button_frame.pack(fill=tk.X)
+            
+            def save_changes():
+                # 直接从Entry和Combobox获取值，避免StringVar同步问题
+                new_display_name = display_name_entry.get().strip()
+                new_scope = scope_combo.get()
+                
+                # 添加详细调试日志
+                logger.info(f"[调试] 保存前获取值 - StringVar.get(): '{display_name_var.get()}', Entry.get(): '{display_name_entry.get()}'")
+                logger.info(f"[调试] 保存前获取值 - scope_var.get(): '{scope_var.get()}', scope_combo.get(): '{scope_combo.get()}'")
+                logger.info(f"[调试] 保存前处理后 - new_display_name: '{new_display_name}', new_scope: '{new_scope}'")
+                logger.info(f"保存字段配置 - 字段: {field}, 新显示名称: '{new_display_name}', 新作用范围: '{new_scope}'")
+                logger.info(f"StringVar原始值: '{display_name_var.get()}', Entry内容: '{display_name_entry.get()}'")
+                
+                if not new_display_name:
+                    messagebox.showerror("输入错误", "请输入显示名称", parent=dialog)
+                    display_name_entry.focus()
+                    return
+                
+                # 保存到配置
+                self.config_data.setdefault("display_names", {})[field] = {
+                    "display_name": new_display_name,
+                    "scope": new_scope
+                }
+                # 直接保存配置到文件，避免重复弹窗
+                try:
+                    with open(self.config_path, 'w', encoding='utf-8') as f:
+                        json.dump(self.config_data, f, ensure_ascii=False, indent=2)
+                    logger.info(f"配置文件保存成功: {self.config_path}")
+                except Exception as e:
+                    logger.error(f"保存配置文件失败: {e}")
+                    messagebox.showerror("错误", f"保存配置文件失败: {e}", parent=dialog)
+                    return
+                
+                # 重新加载配置数据并刷新所有界面
+                self.load_config()
+                self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
+                # 使用实际保存的值而不是重新加载的值来记录日志
+                logger.info(f"编辑字段配置: {field} -> {new_display_name} ({new_scope})")
+                messagebox.showinfo("成功", f"字段 '{field}' 更新成功！", parent=dialog)
+                dialog.destroy()
+            
+            # 右对齐按钮
+            button_right_frame = ttk.Frame(button_frame)
+            button_right_frame.pack(side=tk.RIGHT)
+            
+            ttk.Button(button_right_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=(0, 10))
+            save_btn = ttk.Button(button_right_frame, text="保存", command=save_changes)
+            save_btn.pack(side=tk.LEFT)
+            
+            # 绑定回车键和ESC键
+            dialog.bind('<Return>', lambda e: save_changes())
+            dialog.bind('<Escape>', lambda e: dialog.destroy())
+            
+            # 设置默认按钮样式
+            save_btn.focus()
     
     def delete_display_name(self):
         """删除显示名称"""
         selection = self.display_names_tree.selection()
         if selection:
             item = selection[0]
+            # 从三列数据获取字段信息
             values = self.display_names_tree.item(item, "values")
-            field = values[0]
+            field, display_name, scope = values
             
-            if messagebox.askyesno("确认删除", f"确定要删除字段 '{field}' 的显示名称吗？"):
+            if messagebox.askyesno("确认删除", f"确定要删除字段 '{display_name}' ({field}) 吗？", parent=self.root):
                 self.config_data.get("display_names", {}).pop(field, None)
-                self.refresh_display_names()
-                logger.info(f"删除显示名称: {field}")
+                self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
+                logger.info(f"删除字段配置: {field}")
     
     def batch_import_display_names(self):
         """批量导入显示名称"""
@@ -902,6 +1286,11 @@ class ConfigManagerUI:
             
             self.default_hierarchy_var.set(self.config_data.get("default_hierarchy_level", "part"))
             
+            # 刷新主窗口页面字段显示
+            if self.app_controller and hasattr(self.app_controller, 'refresh_view'):
+                logger.info("正在刷新主窗口页面字段显示...")
+                self.app_controller.refresh_view()
+            
         except Exception as e:
             logger.error(f"刷新UI失败: {e}")
     
@@ -910,6 +1299,8 @@ class ConfigManagerUI:
         if self.root:
             self.root.destroy()
             self.root = None
+            # 重置内容加载标志，确保下次打开时重新创建内容
+            self.display_names_content_loaded = False
             logger.info("配置管理窗口已关闭")
 
 
