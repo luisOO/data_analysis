@@ -653,13 +653,18 @@ class SubFactorDetailView:
             display_name = self.controller.config_manager.get_display_name(col)
             headers.append(display_name)
         
+        # 添加调试日志
+        print(f"[DEBUG] 表格显示 - 要显示的列: {columns_to_show}")
+        print(f"[DEBUG] 表格显示 - 列标题: {headers}")
+        print(f"[DEBUG] 表格显示 - 数据行数: {len(df) if not df.empty else 0}")
+        
         # 设置表格数据
         data = []
         if not df.empty:
-            for _, row in df.iterrows():
+            for idx, (_, row) in enumerate(df.iterrows()):
                 row_data = []
                 for col in columns_to_show:
-                    if pd.notna(row[col]) and col in df.columns:
+                    if col in df.columns and pd.notna(row[col]):
                         value = row[col]
                         # 保持数字精度，避免精度丢失
                         if isinstance(value, (int, float)):
@@ -675,6 +680,12 @@ class SubFactorDetailView:
                     else:
                         row_data.append("")
                 data.append(row_data)
+                
+                # 添加前几行数据的调试日志
+                if idx < 3:
+                    print(f"[DEBUG] 第{idx+1}行数据: {row_data}")
+        
+        print(f"[DEBUG] 表格显示 - 总数据行数: {len(data)}")
         
         # 智能更新表格 - 只在必要时更新标题和数据
         current_headers = getattr(self, 'current_headers', [])

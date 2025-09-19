@@ -89,15 +89,20 @@ class ConfigManager:
             return field_config
     
     def get_field_scope(self, field_name):
-        """获取字段的作用范围"""
+        """获取字段的作用范围，返回列表"""
         display_names = self.get_display_names()
         field_config = display_names.get(field_name, {})
         
         if isinstance(field_config, dict):
-            return field_config.get('scope', '整单基本信息')
+            scope = field_config.get('scope', '整单基本信息')
+            # 兼容新旧格式，确保返回列表
+            if isinstance(scope, list):
+                return scope
+            else:
+                return [scope]
         else:
             # 兼容旧格式，默认为整单基本信息
-            return '整单基本信息'
+            return ['整单基本信息']
     
     def get_fields_by_scope(self, scope):
         """根据作用范围获取字段列表"""
@@ -106,8 +111,15 @@ class ConfigManager:
         
         for field_name, field_config in display_names.items():
             if isinstance(field_config, dict):
-                if field_config.get('scope') == scope:
-                    fields.append(field_name)
+                field_scope = field_config.get('scope')
+                # 处理多选作用范围
+                if isinstance(field_scope, list):
+                    if scope in field_scope:
+                        fields.append(field_name)
+                else:
+                    # 兼容单选作用范围
+                    if field_scope == scope:
+                        fields.append(field_name)
             else:
                 # 兼容旧格式，默认为整单基本信息
                 if scope == '整单基本信息':

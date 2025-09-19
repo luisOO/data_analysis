@@ -58,13 +58,18 @@ class ConfigManagerUI:
             messagebox.showerror("错误", f"加载配置文件失败: {e}")
             self.config_data = self.get_default_config()
     
-    def save_config(self):
-        """保存配置文件"""
+    def save_config(self, show_success_message=True):
+        """保存配置文件
+        
+        Args:
+            show_success_message: 是否显示成功消息弹窗，默认为True
+        """
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config_data, f, ensure_ascii=False, indent=2)
             logger.info(f"配置文件保存成功: {self.config_path}")
-            messagebox.showinfo("成功", "配置保存成功！")
+            if show_success_message:
+                messagebox.showinfo("成功", "配置保存成功！")
         except Exception as e:
             logger.error(f"保存配置文件失败: {e}")
             messagebox.showerror("错误", f"保存配置文件失败: {e}")
@@ -334,9 +339,15 @@ class ConfigManagerUI:
         
         ttk.Label(search_frame, text="搜索:").pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
-        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-        search_entry.bind('<KeyRelease>', self.filter_display_names)
+        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        
+        # 添加搜索按钮，避免仅依赖KeyRelease事件
+        search_button = ttk.Button(search_frame, text="搜索", command=self.filter_display_names)
+        search_button.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        # 同时保留KeyRelease事件绑定
+        self.search_entry.bind('<KeyRelease>', self.filter_display_names)
         
         # 显示名称树（三列：字段名、显示名称、作用范围）
         tree_frame = ttk.Frame(main_container)
@@ -881,7 +892,13 @@ class ConfigManagerUI:
         display_names = self.config_data.get("display_names", {})
         # 添加调试日志
         logger.info(f"刷新显示名称列表 - 配置数据: {display_names}")
-        search_text = self.search_var.get().lower() if hasattr(self, 'search_var') else ""
+        # 确保search_var已初始化并正确获取值
+        if hasattr(self, 'search_var'):
+            search_text = self.search_var.get().lower()
+            logger.info(f"搜索文本: '{search_text}'")
+        else:
+            search_text = ""
+            logger.warning("搜索变量未初始化")
         
         for field, field_config in sorted(display_names.items()):
             # 兼容新旧格式
@@ -901,14 +918,53 @@ class ConfigManagerUI:
     
     def filter_display_names(self, event=None):
         """过滤显示名称"""
-        self.refresh_display_names()
+        # 直接从输入框获取文本，而不是从StringVar获取
+        if hasattr(self, 'search_entry') and self.search_entry:
+            search_text = self.search_entry.get()
+        else:
+            search_text = self.search_var.get() if hasattr(self, 'search_var') else ""
+        
+        logger.info(f"过滤显示名称 - 搜索文本: '{search_text}'")
+        
+        # 直接在这里进行过滤，而不是调用refresh_display_names
+        # 清空树
+        for item in self.display_names_tree.get_children():
+            self.display_names_tree.delete(item)
+        
+        # 加载显示名称
+        display_names = self.config_data.get("display_names", {})
+        logger.info(f"过滤显示名称 - 配置数据数量: {len(display_names)}")
+        
+        # 确保搜索文本是字符串并转为小写
+        search_text = search_text.lower()
+        
+        # 计数器，用于记录匹配的项目数
+        match_count = 0
+        
+        for field, field_config in sorted(display_names.items()):
+            # 兼容新旧格式
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field)
+                scope = field_config.get('scope', '整单基本信息')
+            else:
+                # 兼容旧格式
+                display_name = field_config
+                scope = '整单基本信息'
+            
+            # 搜索过滤
+            if not search_text or search_text in field.lower() or search_text in display_name.lower() or search_text in scope.lower():
+                # 显示三列数据：字段名、显示名称、作用范围
+                item_id = self.display_names_tree.insert("", tk.END, values=(field, display_name, scope))
+                match_count += 1
+        
+        logger.info(f"过滤显示名称 - 匹配项目数: {match_count}")
     
     def add_display_name(self):
         """添加显示名称"""
         # 创建添加字段的弹窗
         dialog = tk.Toplevel(self.root)
         dialog.title("添加字段配置")
-        dialog.geometry("450x280")
+        dialog.geometry("450x350")  # 增加高度确保按钮显示
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -916,8 +972,8 @@ class ConfigManagerUI:
         # 居中显示
         dialog.update_idletasks()
         x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (280 // 2)
-        dialog.geometry(f"450x280+{x}+{y}")
+        y = (dialog.winfo_screenheight() // 2) - (350 // 2)
+        dialog.geometry(f"450x350+{x}+{y}")
         
         # 主框架
         main_frame = ttk.Frame(dialog, padding="20")
@@ -936,6 +992,9 @@ class ConfigManagerUI:
         field_entry.pack(side=tk.LEFT, padx=(10, 0))
         field_entry.focus()
         
+        # 添加调试日志
+        logger.info(f"添加字段配置 - 初始化字段名输入框")
+        
         # 显示名称输入框
         display_frame = ttk.Frame(main_frame)
         display_frame.pack(fill=tk.X, pady=(0, 15))
@@ -944,15 +1003,43 @@ class ConfigManagerUI:
         display_name_entry = ttk.Entry(display_frame, textvariable=display_name_var, width=35)
         display_name_entry.pack(side=tk.LEFT, padx=(10, 0))
         
-        # 作用范围下拉框
+        # 添加调试日志
+        logger.info(f"添加字段配置 - 初始化显示名称输入框")
+        
+        # 作用范围多选复选框
         scope_frame = ttk.Frame(main_frame)
         scope_frame.pack(fill=tk.X, pady=(0, 20))
         ttk.Label(scope_frame, text="作用范围:", width=12, anchor='w').pack(side=tk.LEFT)
-        scope_var = tk.StringVar(value="整单基本信息")
-        scope_combo = ttk.Combobox(scope_frame, textvariable=scope_var, 
-                                  values=["整单基本信息", "子因子基本信息", "子因子表格"],
-                                  state="readonly", width=32)
-        scope_combo.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 创建复选框框架
+        scope_checkboxes_frame = ttk.Frame(scope_frame)
+        scope_checkboxes_frame.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
+        
+        # 添加复选框选项 - 包含三个选项
+        scope_options = ["整单基本信息", "子因子基本信息", "子因子表格"]
+        scope_vars = {}  # 用于存储复选框变量
+        scope_checkboxes = {}  # 用于存储复选框对象
+        
+        for option in scope_options:
+            var = tk.BooleanVar(value=False)
+            scope_vars[option] = var
+            cb = ttk.Checkbutton(scope_checkboxes_frame, text=option, variable=var)
+            cb.pack(anchor=tk.W, pady=2)
+            scope_checkboxes[option] = cb
+        
+        # 默认选中第一项
+        scope_vars[scope_options[0]].set(True)
+        
+        # 强制设置复选框状态，确保移除alternate状态
+        for option, cb in scope_checkboxes.items():
+            if scope_vars[option].get():
+                cb.state(['selected', '!alternate'])
+            else:
+                cb.state(['!selected', '!alternate'])
+        
+        # 添加调试日志
+        logger.info(f"添加字段配置 - 初始化作用范围选项: {scope_options}, 默认选中: ['整单基本信息']")
+        logger.info(f"[调试] 添加字段配置 - 复选框状态: {[(option, var.get(), scope_checkboxes[option].state()) for option, var in scope_vars.items()]}")
         
         # 分隔线
         separator = ttk.Separator(main_frame, orient='horizontal')
@@ -960,12 +1047,18 @@ class ConfigManagerUI:
         
         # 按钮框架
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X)
+        button_frame.pack(fill=tk.X, pady=(0, 10))  # 添加底部边距
         
         def save_field():
-            field = field_var.get().strip()
-            display_name = display_name_var.get().strip()
-            scope = scope_var.get()
+            # 直接从输入框获取值，而不是从StringVar获取
+            field = field_entry.get().strip()
+            display_name = display_name_entry.get().strip()
+            
+            # 添加调试日志
+            logger.info(f"添加字段配置 - 保存时获取值 - 字段名: '{field}', 显示名称: '{display_name}'")
+            
+            # 获取复选框选中的值
+            selected_scopes = [option for option, var in scope_vars.items() if var.get()]
             
             if not field:
                 messagebox.showerror("输入错误", "请输入字段名", parent=dialog)
@@ -974,6 +1067,9 @@ class ConfigManagerUI:
             if not display_name:
                 messagebox.showerror("输入错误", "请输入显示名称", parent=dialog)
                 display_name_entry.focus()
+                return
+            if not selected_scopes:
+                messagebox.showerror("输入错误", "请至少选择一个作用范围", parent=dialog)
                 return
             
             # 检查字段名是否已存在
@@ -986,10 +1082,24 @@ class ConfigManagerUI:
             # 保存到配置
             self.config_data.setdefault("display_names", {})[field] = {
                 "display_name": display_name,
-                "scope": scope
+                "scope": selected_scopes  # 保存为列表
             }
+            
+            # 添加调试日志
+            logger.info(f"[调试] 添加字段配置到内存: {field} -> {display_name} ({selected_scopes})")
+            
+            # 保存配置到文件
+            try:
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.config_data, f, ensure_ascii=False, indent=2)
+                logger.info(f"[调试] 配置文件保存成功: {self.config_path}")
+            except Exception as e:
+                logger.error(f"[调试] 保存配置文件失败: {e}")
+                messagebox.showerror("错误", f"保存配置文件失败: {e}", parent=dialog)
+                return
+                
             self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
-            logger.info(f"添加字段配置: {field} -> {display_name} ({scope})")
+            logger.info(f"添加字段配置: {field} -> {display_name} ({selected_scopes})")
             messagebox.showinfo("成功", f"字段 '{field}' 添加成功！", parent=dialog)
             dialog.destroy()
         
@@ -1021,12 +1131,11 @@ class ConfigManagerUI:
                 field, old_display_name, old_scope = values[0], values[1], values[2]
                 logger.info(f"编辑字段配置 - 字段: {field}, 旧显示名称: '{old_display_name}', 旧作用范围: '{old_scope}'")
             else:
-                return
-            
+                return            
             # 创建编辑弹窗
             dialog = tk.Toplevel(self.root)
             dialog.title("编辑字段配置")
-            dialog.geometry("450x280")
+            dialog.geometry("450x350")  # 增加高度确保按钮显示
             dialog.resizable(False, False)
             dialog.transient(self.root)
             dialog.grab_set()
@@ -1034,8 +1143,8 @@ class ConfigManagerUI:
             # 居中显示
             dialog.update_idletasks()
             x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
-            y = (dialog.winfo_screenheight() // 2) - (280 // 2)
-            dialog.geometry(f"450x280+{x}+{y}")
+            y = (dialog.winfo_screenheight() // 2) - (350 // 2)
+            dialog.geometry(f"450x350+{x}+{y}")
             
             # 主框架
             main_frame = ttk.Frame(dialog, padding="20")
@@ -1077,17 +1186,64 @@ class ConfigManagerUI:
             
             display_name_var.trace('w', on_entry_change)
             
-            # 作用范围下拉框
+            # 作用范围多选复选框
             scope_frame = ttk.Frame(main_frame)
             scope_frame.pack(fill=tk.X, pady=(0, 20))
             ttk.Label(scope_frame, text="作用范围:", width=12, anchor='w').pack(side=tk.LEFT)
-            scope_var = tk.StringVar(value=old_scope)
-            scope_combo = ttk.Combobox(scope_frame, textvariable=scope_var, 
-                                      values=["整单基本信息", "子因子基本信息", "子因子表格"],
-                                      state="readonly", width=32)
-            scope_combo.pack(side=tk.LEFT, padx=(10, 0))
-            # 确保Combobox显示初始值
-            scope_combo.set(old_scope)
+            
+            # 创建复选框框架
+            scope_checkboxes_frame = ttk.Frame(scope_frame)
+            scope_checkboxes_frame.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
+            
+            # 添加复选框选项
+            scope_options = ["整单基本信息", "子因子基本信息", "子因子表格"]
+            scope_vars = {}  # 用于存储复选框变量
+            scope_checkboxes = {}  # 用于存储复选框对象
+            
+            # 如果old_scope是字符串，转换为列表
+            old_scopes = []
+            if isinstance(old_scope, str):
+                # 处理可能的逗号分隔字符串
+                if ',' in old_scope:
+                    old_scopes = [s.strip() for s in old_scope.split(',')]
+                else:
+                    old_scopes = [old_scope.strip()]
+            elif isinstance(old_scope, list):
+                old_scopes = old_scope
+            
+            # 添加调试日志
+            logger.info(f"[调试] 编辑字段配置 - 处理后的作用范围列表: {old_scopes}")
+            logger.info(f"[调试] 编辑字段配置 - 原始作用范围值: {old_scope}, 类型: {type(old_scope)}")
+            
+            # 确保复选框正确初始化
+            for option in scope_options:
+                # 直接使用字符串比较，不区分列表或字符串格式
+                is_selected = False
+                
+                # 检查选项是否在作用范围列表中
+                if isinstance(old_scope, str) and old_scope == option:
+                    is_selected = True
+                elif isinstance(old_scope, list) and option in old_scope:
+                    is_selected = True
+                elif option in old_scopes:
+                    is_selected = True
+                
+                logger.info(f"[调试] 选项 '{option}' 是否选中: {is_selected}")
+                
+                var = tk.BooleanVar(value=is_selected)
+                scope_vars[option] = var
+                cb = ttk.Checkbutton(scope_checkboxes_frame, text=option, variable=var)
+                cb.pack(anchor=tk.W, pady=2)
+                scope_checkboxes[option] = cb  # 存储复选框对象
+                
+                # 强制设置复选框状态，并确保移除alternate状态
+                if is_selected:
+                    cb.state(['selected', '!alternate'])
+                else:
+                    cb.state(['!selected', '!alternate'])
+                
+                # 添加调试日志
+                logger.info(f"[调试] 复选框 '{option}' 初始状态: {var.get()}, 复选框状态: {cb.state()}")
             
             # 分隔线
             separator = ttk.Separator(main_frame, orient='horizontal')
@@ -1098,32 +1254,82 @@ class ConfigManagerUI:
             button_frame.pack(fill=tk.X)
             
             def save_changes():
-                # 直接从Entry和Combobox获取值，避免StringVar同步问题
+                # 直接从Entry获取值
                 new_display_name = display_name_entry.get().strip()
-                new_scope = scope_combo.get()
+                
+                # 获取复选框选中的值
+                new_scopes = []
                 
                 # 添加详细调试日志
-                logger.info(f"[调试] 保存前获取值 - StringVar.get(): '{display_name_var.get()}', Entry.get(): '{display_name_entry.get()}'")
-                logger.info(f"[调试] 保存前获取值 - scope_var.get(): '{scope_var.get()}', scope_combo.get(): '{scope_combo.get()}'")
-                logger.info(f"[调试] 保存前处理后 - new_display_name: '{new_display_name}', new_scope: '{new_scope}'")
-                logger.info(f"保存字段配置 - 字段: {field}, 新显示名称: '{new_display_name}', 新作用范围: '{new_scope}'")
-                logger.info(f"StringVar原始值: '{display_name_var.get()}', Entry内容: '{display_name_entry.get()}'")
+                logger.info(f"[调试] 保存前获取值 - Entry.get(): '{display_name_entry.get()}'")
+                
+                # 直接检查复选框的状态而不是变量值
+                for option, cb in scope_checkboxes.items():
+                    is_selected = 'selected' in cb.state()
+                    logger.info(f"[调试] 复选框 '{option}' 状态: {cb.state()}, 是否选中: {is_selected}")
+                    if is_selected:
+                        new_scopes.append(option)
+                
+                logger.info(f"[调试] 保存前获取值 - 选中的作用范围: {new_scopes}")
+                logger.info(f"[调试] 保存前处理后 - new_display_name: '{new_display_name}', new_scopes: {new_scopes}")
+                logger.info(f"保存字段配置 - 字段: {field}, 新显示名称: '{new_display_name}', 新作用范围: {new_scopes}")
                 
                 if not new_display_name:
                     messagebox.showerror("输入错误", "请输入显示名称", parent=dialog)
                     display_name_entry.focus()
                     return
                 
+                if not new_scopes:
+                    messagebox.showerror("输入错误", "请至少选择一个作用范围", parent=dialog)
+                    return
+                
                 # 保存到配置
+                # 检查是否只有一个作用范围，如果是则保存为字符串，否则保存为列表
+                if len(new_scopes) == 1:
+                    scope_value = new_scopes[0]  # 保存为字符串
+                    logger.info(f"[调试] 保存单个作用范围为字符串: {scope_value}")
+                else:
+                    scope_value = new_scopes  # 保存为列表
+                    logger.info(f"[调试] 保存多个作用范围为列表: {scope_value}")
+                
+                # 记录修改前的配置数据
+                old_config = self.config_data.get("display_names", {}).get(field, {})
+                logger.info(f"[调试] 修改前的配置数据: {old_config}")
+                
+                # 更新配置数据
                 self.config_data.setdefault("display_names", {})[field] = {
                     "display_name": new_display_name,
-                    "scope": new_scope
+                    "scope": scope_value
                 }
+                
+                # 记录修改后的配置数据
+                new_config = self.config_data.get("display_names", {}).get(field, {})
+                logger.info(f"[调试] 修改后的配置数据: {new_config}")
+                
                 # 直接保存配置到文件，避免重复弹窗
                 try:
+                    # 记录保存前的配置文件路径
+                    logger.info(f"[调试] 准备保存配置文件: {self.config_path}")
+                    
+                    # 保存配置文件
                     with open(self.config_path, 'w', encoding='utf-8') as f:
                         json.dump(self.config_data, f, ensure_ascii=False, indent=2)
-                    logger.info(f"配置文件保存成功: {self.config_path}")
+                    
+                    # 验证配置文件是否成功保存
+                    if os.path.exists(self.config_path):
+                        file_size = os.path.getsize(self.config_path)
+                        logger.info(f"[调试] 配置文件保存成功: {self.config_path}, 文件大小: {file_size} 字节")
+                        
+                        # 读取保存后的文件内容进行验证
+                        try:
+                            with open(self.config_path, 'r', encoding='utf-8') as f:
+                                saved_data = json.load(f)
+                                saved_field_config = saved_data.get("display_names", {}).get(field, {})
+                                logger.info(f"[调试] 保存后读取的字段配置: {saved_field_config}")
+                        except Exception as e:
+                            logger.error(f"[调试] 读取保存后的配置文件失败: {e}")
+                    else:
+                        logger.error(f"[调试] 配置文件保存后不存在: {self.config_path}")
                 except Exception as e:
                     logger.error(f"保存配置文件失败: {e}")
                     messagebox.showerror("错误", f"保存配置文件失败: {e}", parent=dialog)
@@ -1133,7 +1339,7 @@ class ConfigManagerUI:
                 self.load_config()
                 self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
                 # 使用实际保存的值而不是重新加载的值来记录日志
-                logger.info(f"编辑字段配置: {field} -> {new_display_name} ({new_scope})")
+                logger.info(f"编辑字段配置: {field} -> {new_display_name} ({new_scopes})")
                 messagebox.showinfo("成功", f"字段 '{field}' 更新成功！", parent=dialog)
                 dialog.destroy()
             
@@ -1162,9 +1368,44 @@ class ConfigManagerUI:
             field, display_name, scope = values
             
             if messagebox.askyesno("确认删除", f"确定要删除字段 '{display_name}' ({field}) 吗？", parent=self.root):
+                # 记住当前选中项的索引，用于后续恢复焦点
+                current_index = self.display_names_tree.index(item)
+                logger.info(f"删除前选中项索引: {current_index}")
+                
                 self.config_data.get("display_names", {}).pop(field, None)
-                self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
                 logger.info(f"删除字段配置: {field}")
+                
+                # 保存配置到文件，不显示成功弹窗
+                try:
+                    logger.info(f"正在将删除字段 '{field}' 的配置保存到文件...")
+                    self.save_config(show_success_message=False)
+                    logger.info(f"成功保存配置到文件")
+                except Exception as e:
+                    logger.error(f"保存配置到文件失败: {str(e)}")
+                    messagebox.showerror("保存失败", f"保存配置到文件失败: {str(e)}", parent=self.root)
+                
+                self.refresh_all_ui()  # 刷新所有相关页面，确保实时更新
+                
+                # 恢复焦点到删除项后的位置或最后一项
+                self.root.update()  # 确保UI已更新
+                items = self.display_names_tree.get_children()
+                if items:
+                    # 如果删除的是最后一项，选择新的最后一项
+                    if current_index >= len(items):
+                        current_index = len(items) - 1
+                    
+                    # 选择并聚焦到相应项
+                    item_to_select = items[current_index]
+                    self.display_names_tree.selection_set(item_to_select)
+                    self.display_names_tree.focus_set()
+                    self.display_names_tree.focus(item_to_select)
+                    self.display_names_tree.see(item_to_select)
+                    logger.info(f"恢复焦点到索引: {current_index}")
+                    
+                    # 将窗口提到前台
+                    self.root.lift()
+                    self.root.focus_force()
+                    logger.info("将配置管理窗口提到前台")
     
     def batch_import_display_names(self):
         """批量导入显示名称"""
