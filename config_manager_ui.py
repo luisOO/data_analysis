@@ -474,13 +474,22 @@ class ConfigManagerUI:
         display_names = self.config_data.get("display_names", {})
         selected_fields = self.config_data.get("document_info_fields", [])
         
-        # 获取作用范围为整单基本信息的所有字段
+        # 获取作用范围包含整单基本信息的所有字段
         available_fields = []
         for field_name, field_config in display_names.items():
             if isinstance(field_config, dict):
-                if field_config.get('scope') == '整单基本信息':
-                    display_name = field_config.get('display_name', field_name)
-                    available_fields.append((field_name, display_name))
+                scope = field_config.get('scope')
+                # 支持多选作用范围：检查scope是否包含'整单基本信息'
+                if isinstance(scope, list):
+                    # 作用范围是列表，检查是否包含'整单基本信息'
+                    if '整单基本信息' in scope:
+                        display_name = field_config.get('display_name', field_name)
+                        available_fields.append((field_name, display_name))
+                elif isinstance(scope, str):
+                    # 作用范围是字符串，检查是否等于'整单基本信息'
+                    if scope == '整单基本信息':
+                        display_name = field_config.get('display_name', field_name)
+                        available_fields.append((field_name, display_name))
             else:
                 # 兼容旧格式，默认为整单基本信息
                 available_fields.append((field_name, field_config))
