@@ -68,11 +68,25 @@ class ConfigManagerUI:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config_data, f, ensure_ascii=False, indent=2)
             logger.info(f"配置文件保存成功: {self.config_path}")
+            
+            # 保存成功后刷新所有UI，包括主窗口
+            self.refresh_all_ui()
+            
             if show_success_message:
-                messagebox.showinfo("成功", "配置保存成功！")
+                # 指定parent为配置管理窗口，确保弹窗与窗口关联
+                messagebox.showinfo("成功", "配置保存成功！", parent=self.root)
+                # 弹窗关闭后恢复配置管理窗口焦点
+                if self.root:
+                    self.root.lift()
+                    self.root.focus_force()
         except Exception as e:
             logger.error(f"保存配置文件失败: {e}")
-            messagebox.showerror("错误", f"保存配置文件失败: {e}")
+            # 错误弹窗也指定parent
+            messagebox.showerror("错误", f"保存配置文件失败: {e}", parent=self.root)
+            # 错误弹窗关闭后也要恢复焦点
+            if self.root:
+                self.root.lift()
+                self.root.focus_force()
     
     def get_default_config(self) -> Dict[str, Any]:
         """获取默认配置"""
@@ -175,31 +189,87 @@ class ConfigManagerUI:
         main_container = ttk.Frame(tab_frame)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # 左侧：当前字段列表
-        left_frame = ttk.LabelFrame(main_container, text="当前字段列表")
+        # 左侧：可选择字段
+        left_frame = ttk.LabelFrame(main_container, text="可选择字段", padding=5)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        # 字段列表框
-        listbox_frame = ttk.Frame(left_frame)
-        listbox_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # 可选字段列表框
+        available_listbox_frame = ttk.Frame(left_frame)
+        available_listbox_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        self.document_fields_listbox = tk.Listbox(listbox_frame, selectmode=tk.SINGLE)
-        scrollbar_y = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.document_fields_listbox.yview)
-        self.document_fields_listbox.configure(yscrollcommand=scrollbar_y.set)
+        self.available_fields_listbox = tk.Listbox(available_listbox_frame, selectmode=tk.SINGLE, 
+                                                  font=('Arial', 9), height=15,
+                                                  bg='#f8f9fa', selectbackground='#007acc',
+                                                  selectforeground='white', borderwidth=1,
+                                                  relief='solid', highlightthickness=0)
+        available_scrollbar_y = ttk.Scrollbar(available_listbox_frame, orient=tk.VERTICAL, 
+                                            command=self.available_fields_listbox.yview)
+        self.available_fields_listbox.configure(yscrollcommand=available_scrollbar_y.set)
         
-        self.document_fields_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self.available_fields_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        available_scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 右侧：操作按钮
-        right_frame = ttk.Frame(main_container)
-        right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+        # 中间：操作按钮
+        middle_frame = ttk.Frame(main_container)
+        middle_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8)
         
-        # 按钮组
-        ttk.Button(right_frame, text="添加字段", command=self.add_document_field).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="删除字段", command=self.remove_document_field).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="上移", command=lambda: self.move_document_field(-1)).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="下移", command=lambda: self.move_document_field(1)).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="编辑字段", command=self.edit_document_field).pack(pady=2, fill=tk.X)
+        # 添加一些垂直空间使按钮居中
+        ttk.Label(middle_frame, text="").pack(pady=30)
+        
+        # 左右移动按钮组
+        move_frame = ttk.LabelFrame(middle_frame, text="字段操作", padding=5)
+        move_frame.pack(pady=5)
+        
+        ttk.Button(move_frame, text="添加 →", width=12, 
+                  command=self.add_selected_field,
+                  style='Accent.TButton').pack(pady=3)
+        ttk.Button(move_frame, text="← 移除", width=12, 
+                  command=self.remove_selected_field).pack(pady=3)
+        
+        # 分隔线
+        ttk.Separator(middle_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
+        
+        # 上下移动按钮组
+        sort_frame = ttk.LabelFrame(middle_frame, text="排序操作", padding=5)
+        sort_frame.pack(pady=5)
+        
+        ttk.Button(sort_frame, text="上移 ↑", width=12, 
+                  command=lambda: self.move_selected_field(-1)).pack(pady=2)
+        ttk.Button(sort_frame, text="下移 ↓", width=12, 
+                  command=lambda: self.move_selected_field(1)).pack(pady=2)
+        
+        # 右侧：已选择字段
+        right_frame = ttk.LabelFrame(main_container, text="已选择字段（显示顺序）", padding=5)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # 已选字段列表框
+        selected_listbox_frame = ttk.Frame(right_frame)
+        selected_listbox_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.selected_fields_listbox = tk.Listbox(selected_listbox_frame, selectmode=tk.SINGLE, 
+                                                 font=('Arial', 9), height=15,
+                                                 bg='#f0f8ff', selectbackground='#28a745',
+                                                 selectforeground='white', borderwidth=1,
+                                                 relief='solid', highlightthickness=0)
+        selected_scrollbar_y = ttk.Scrollbar(selected_listbox_frame, orient=tk.VERTICAL, 
+                                           command=self.selected_fields_listbox.yview)
+        self.selected_fields_listbox.configure(yscrollcommand=selected_scrollbar_y.set)
+        
+        self.selected_fields_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        selected_scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 底部提示信息
+        tip_frame = ttk.Frame(tab_frame)
+        tip_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        tip_label = ttk.Label(tip_frame, 
+                             text="💡 提示：双击字段可快速添加/移除，右侧字段顺序决定页面显示顺序",
+                             font=('Arial', 8), foreground='#666666')
+        tip_label.pack(anchor=tk.W)
+        
+        # 绑定双击事件
+        self.available_fields_listbox.bind('<Double-1>', lambda e: self.add_selected_field())
+        self.selected_fields_listbox.bind('<Double-1>', lambda e: self.remove_selected_field())
         
         # 加载数据
         self.refresh_document_fields()
@@ -389,7 +459,6 @@ class ConfigManagerUI:
         button_frame.pack(fill=tk.X, pady=(10, 0))
         
         ttk.Button(button_frame, text="保存配置", command=self.save_all_config).pack(side=tk.RIGHT, padx=(5, 0))
-        ttk.Button(button_frame, text="重置配置", command=self.reset_config).pack(side=tk.RIGHT, padx=(5, 0))
         ttk.Button(button_frame, text="导出配置", command=self.export_config).pack(side=tk.RIGHT, padx=(5, 0))
         ttk.Button(button_frame, text="导入配置", command=self.import_config).pack(side=tk.RIGHT, padx=(5, 0))
     
@@ -397,26 +466,16 @@ class ConfigManagerUI:
     
     def refresh_document_fields(self):
         """刷新整单基本信息字段列表"""
-        self.document_fields_listbox.delete(0, tk.END)
-        fields = self.config_data.get("document_info_fields", [])
-        display_names = self.config_data.get("display_names", {})
+        # 清空两个列表框
+        self.available_fields_listbox.delete(0, tk.END)
+        self.selected_fields_listbox.delete(0, tk.END)
         
-        for field in fields:
-            field_config = display_names.get(field, field)
-            if isinstance(field_config, dict):
-                display_name = field_config.get('display_name', field)
-            else:
-                # 兼容旧格式
-                display_name = field_config
-            
-            self.document_fields_listbox.insert(tk.END, display_name)
-    
-    def add_document_field(self):
-        """添加整单基本信息字段"""
-        # 获取作用范围为整单基本信息的字段
+        # 获取所有可用字段和已选择字段
         display_names = self.config_data.get("display_names", {})
+        selected_fields = self.config_data.get("document_info_fields", [])
+        
+        # 获取作用范围为整单基本信息的所有字段
         available_fields = []
-        
         for field_name, field_config in display_names.items():
             if isinstance(field_config, dict):
                 if field_config.get('scope') == '整单基本信息':
@@ -426,124 +485,124 @@ class ConfigManagerUI:
                 # 兼容旧格式，默认为整单基本信息
                 available_fields.append((field_name, field_config))
         
-        if not available_fields:
-            messagebox.showwarning("警告", "没有可用的整单基本信息字段！\n请先在字段配置页面添加作用范围为'整单基本信息'的字段。")
+        # 填充已选择字段列表（按配置顺序）
+        for field in selected_fields:
+            field_config = display_names.get(field, field)
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field)
+            else:
+                display_name = field_config
+            self.selected_fields_listbox.insert(tk.END, display_name)
+        
+        # 填充可选择字段列表（排除已选择的）
+        for field_name, display_name in available_fields:
+            if field_name not in selected_fields:
+                self.available_fields_listbox.insert(tk.END, display_name)
+    
+    def add_selected_field(self):
+        """将字段从可选择列表添加到已选择列表"""
+        selection = self.available_fields_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
             return
         
-        # 创建字段选择弹窗
-        dialog = tk.Toplevel(self.root)
-        dialog.title("选择字段")
-        dialog.geometry("400x300")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
+        # 获取选中的显示名称
+        display_name = self.available_fields_listbox.get(selection[0])
         
-        # 居中显示
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (300 // 2)
-        dialog.geometry(f"400x300+{x}+{y}")
-        
-        # 说明标签
-        ttk.Label(dialog, text="选择要添加的整单基本信息字段:", font=('Arial', 10, 'bold')).pack(pady=(20, 10))
-        
-        # 字段列表
-        listbox_frame = ttk.Frame(dialog)
-        listbox_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        field_listbox = tk.Listbox(listbox_frame)
-        scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=field_listbox.yview)
-        field_listbox.configure(yscrollcommand=scrollbar.set)
-        
-        # 填充可用字段（只显示显示名称）
-        field_mapping = {}
-        current_fields = self.config_data.get("document_info_fields", [])
-        
-        for field_name, display_name in available_fields:
-            if field_name not in current_fields:  # 只显示未添加的字段
-                field_listbox.insert(tk.END, display_name)
-                field_mapping[display_name] = field_name
-        
-        field_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        if field_listbox.size() == 0:
-            field_listbox.insert(tk.END, "所有整单基本信息字段都已添加")
-            field_listbox.config(state=tk.DISABLED)
-        
-        # 按钮框架
-        button_frame = ttk.Frame(dialog)
-        button_frame.pack(pady=20)
-        
-        def add_selected_field():
-            selection = field_listbox.curselection()
-            if selection and field_listbox.size() > 0 and field_listbox.get(0) != "所有整单基本信息字段都已添加":
-                display_name = field_listbox.get(selection[0])
-                field_name = field_mapping.get(display_name)
-                
-                if field_name:
-                    self.config_data.setdefault("document_info_fields", []).append(field_name)
-                    self.refresh_document_fields()
-                    logger.info(f"添加整单字段: {field_name} ({display_name})")
-                    dialog.destroy()
+        # 根据显示名称找到对应的字段名
+        display_names = self.config_data.get("display_names", {})
+        field_name = None
+        for fname, fconfig in display_names.items():
+            if isinstance(fconfig, dict):
+                if fconfig.get('display_name', fname) == display_name:
+                    field_name = fname
+                    break
             else:
-                messagebox.showwarning("警告", "请选择一个字段！")
+                if fconfig == display_name:
+                    field_name = fname
+                    break
         
-        ttk.Button(button_frame, text="添加", command=add_selected_field).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        if field_name:
+            # 添加到已选择字段配置
+            self.config_data.setdefault("document_info_fields", []).append(field_name)
+            
+            # 刷新界面
+            self.refresh_document_fields()
+            
+            # 选中新添加的字段
+            self.selected_fields_listbox.selection_set(tk.END)
+            
+            logger.info(f"添加字段: {field_name} ({display_name})")
+    
+    def remove_selected_field(self):
+        """将字段从已选择列表移除到可选择列表"""
+        selection = self.selected_fields_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
+            return
         
-        # 双击添加
-        field_listbox.bind('<Double-1>', lambda e: add_selected_field())
+        index = selection[0]
+        fields = self.config_data.get("document_info_fields", [])
+        
+        if index < len(fields):
+            field_name = fields[index]
+            
+            # 获取显示名称用于日志
+            display_names = self.config_data.get("display_names", {})
+            field_config = display_names.get(field_name, field_name)
+            if isinstance(field_config, dict):
+                display_name = field_config.get('display_name', field_name)
+            else:
+                display_name = field_config
+            
+            # 从配置中移除
+            fields.pop(index)
+            
+            # 刷新界面
+            self.refresh_document_fields()
+            
+            logger.info(f"移除字段: {field_name} ({display_name})")
+    
+    def move_selected_field(self, direction):
+        """移动已选择字段的位置"""
+        selection = self.selected_fields_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
+            return
+        
+        index = selection[0]
+        fields = self.config_data.get("document_info_fields", [])
+        new_index = index + direction
+        
+        if 0 <= new_index < len(fields):
+            # 交换位置
+            fields[index], fields[new_index] = fields[new_index], fields[index]
+            
+            # 刷新界面
+            self.refresh_document_fields()
+            
+            # 保持选中状态
+            self.selected_fields_listbox.selection_set(new_index)
+            
+            logger.info(f"移动字段位置: {index} -> {new_index}")
+    
+    # ==================== 整单基本信息字段操作（已废弃的旧方法） ====================
+    
+    def add_document_field(self):
+        """添加整单基本信息字段（已废弃，保留兼容性）"""
+        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
     
     def remove_document_field(self):
-        """删除整单基本信息字段"""
-        selection = self.document_fields_listbox.curselection()
-        if selection:
-            index = selection[0]
-            field = self.config_data.get("document_info_fields", [])[index]
-            
-            # 获取显示名称用于确认对话框
-            display_names = self.config_data.get("display_names", {})
-            field_config = display_names.get(field, field)
-            if isinstance(field_config, dict):
-                display_name = field_config.get('display_name', field)
-            else:
-                display_name = field_config
-            
-            if messagebox.askyesno("确认删除", f"确定要删除字段 '{display_name}' 吗？", parent=self.root):
-                self.config_data.get("document_info_fields", []).pop(index)
-                self.refresh_document_fields()
-                logger.info(f"删除整单字段: {field} ({display_name})")
+        """删除整单基本信息字段（已废弃，保留兼容性）"""
+        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
     
     def move_document_field(self, direction):
-        """移动整单基本信息字段位置"""
-        selection = self.document_fields_listbox.curselection()
-        if selection:
-            index = selection[0]
-            fields = self.config_data.get("document_info_fields", [])
-            new_index = index + direction
-            
-            if 0 <= new_index < len(fields):
-                fields[index], fields[new_index] = fields[new_index], fields[index]
-                self.refresh_document_fields()
-                self.document_fields_listbox.selection_set(new_index)
+        """移动整单基本信息字段位置（已废弃，保留兼容性）"""
+        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
     
     def edit_document_field(self):
-        """编辑整单基本信息字段"""
-        selection = self.document_fields_listbox.curselection()
-        if selection:
-            index = selection[0]
-            field = self.config_data.get("document_info_fields", [])[index]
-            
-            # 获取显示名称
-            display_names = self.config_data.get("display_names", {})
-            field_config = display_names.get(field, field)
-            if isinstance(field_config, dict):
-                display_name = field_config.get('display_name', field)
-            else:
-                display_name = field_config
-            
-            messagebox.showinfo("提示", f"要编辑字段 '{display_name}' 的显示名称或作用范围，请到'字段配置'页面进行操作。")
+        """编辑整单基本信息字段（已废弃，保留兼容性）"""
+        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
     
     # ==================== 因子分类操作 ====================
     
@@ -1455,9 +1514,20 @@ class ConfigManagerUI:
             # 保存配置文件
             self.save_config()
             
+            # 确保配置管理窗口保持焦点，避免跑到主窗口后面
+            if self.root:
+                self.root.lift()
+                self.root.focus_force()
+                self.root.attributes('-topmost', True)
+                self.root.after(100, lambda: self.root.attributes('-topmost', False))
+            
         except Exception as e:
             logger.error(f"保存配置失败: {e}")
             messagebox.showerror("错误", f"保存配置失败: {e}")
+            # 即使出错也要确保窗口焦点
+            if self.root:
+                self.root.lift()
+                self.root.focus_force()
     
     def reset_config(self):
         """重置配置"""
@@ -1511,21 +1581,32 @@ class ConfigManagerUI:
     def refresh_all_ui(self):
         """刷新所有UI"""
         try:
-            self.refresh_document_fields()
-            self.refresh_factor_tree()
-            self.refresh_display_names()
+            # 检查UI组件是否存在，避免在组件未初始化时调用
+            if hasattr(self, 'available_fields_listbox') and self.available_fields_listbox:
+                self.refresh_document_fields()
+            
+            if hasattr(self, 'factor_tree') and self.factor_tree:
+                self.refresh_factor_tree()
+            
+            if hasattr(self, 'display_names_tree') and self.display_names_tree:
+                self.refresh_display_names()
             
             # 刷新数据层次配置
-            hierarchy_names = self.config_data.get("data_hierarchy_names", {})
-            for key, entry in self.hierarchy_name_entries.items():
-                entry.delete(0, tk.END)
-                entry.insert(0, hierarchy_names.get(key, ""))
+            if hasattr(self, 'hierarchy_name_entries') and self.hierarchy_name_entries:
+                hierarchy_names = self.config_data.get("data_hierarchy_names", {})
+                for key, entry in self.hierarchy_name_entries.items():
+                    if entry:  # 确保entry不为None
+                        entry.delete(0, tk.END)
+                        entry.insert(0, hierarchy_names.get(key, ""))
             
-            enabled_levels = self.config_data.get("enabled_hierarchy_levels", [])
-            for key, var in self.hierarchy_vars.items():
-                var.set(key in enabled_levels)
+            if hasattr(self, 'hierarchy_vars') and self.hierarchy_vars:
+                enabled_levels = self.config_data.get("enabled_hierarchy_levels", [])
+                for key, var in self.hierarchy_vars.items():
+                    if var:  # 确保var不为None
+                        var.set(key in enabled_levels)
             
-            self.default_hierarchy_var.set(self.config_data.get("default_hierarchy_level", "part"))
+            if hasattr(self, 'default_hierarchy_var') and self.default_hierarchy_var:
+                self.default_hierarchy_var.set(self.config_data.get("default_hierarchy_level", "part"))
             
             # 刷新主窗口页面字段显示
             if self.app_controller and hasattr(self.app_controller, 'refresh_view'):
