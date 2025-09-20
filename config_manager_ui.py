@@ -451,14 +451,49 @@ class ConfigManagerUI:
             hierarchy_selection_frame = ttk.LabelFrame(right_container, text="数据层次选择")
             hierarchy_selection_frame.pack(fill=tk.X, pady=5)
             
-            self.table_hierarchy_var = tk.StringVar(value="part")
+            # 从配置文件获取默认层次级别
+            default_hierarchy = self.config_data.get("default_hierarchy_level", "part")
+            self.table_hierarchy_var = tk.StringVar(value=default_hierarchy)
+            logger.info(f"🔍 数据层次选择单选按钮初始化，默认层次: {default_hierarchy}")
+            
             hierarchy_buttons_frame = ttk.Frame(hierarchy_selection_frame)
             hierarchy_buttons_frame.pack(fill=tk.X, padx=10, pady=5)
             
             hierarchies = [("total", "整单层"), ("boq", "BOQ层"), ("model", "模型层"), ("part", "部件层")]
+            radio_buttons = {}
             for value, text in hierarchies:
-                ttk.Radiobutton(hierarchy_buttons_frame, text=text, variable=self.table_hierarchy_var,
-                               value=value, command=self.on_hierarchy_change).pack(side=tk.LEFT, padx=10)
+                radio = ttk.Radiobutton(hierarchy_buttons_frame, text=text, variable=self.table_hierarchy_var,
+                               value=value, command=lambda v=value: self.on_hierarchy_change_with_value(v))
+                radio.pack(side=tk.LEFT, padx=10)
+                radio_buttons[value] = radio
+                logger.info(f"🔍 创建数据层次单选按钮: {text}({value}), 是否选中: {value == default_hierarchy}")
+            
+            # 强制更新单选按钮显示状态
+            hierarchy_buttons_frame.update_idletasks()
+            
+            # 强制触发默认选中的单选按钮 - 使用多重方法确保UI正确显示
+            if default_hierarchy in radio_buttons:
+                # 方法1: 先清除所有选择，强制刷新
+                self.table_hierarchy_var.set("")
+                hierarchy_buttons_frame.update_idletasks()
+                
+                # 方法2: 重新设置目标选择
+                self.table_hierarchy_var.set(default_hierarchy)
+                hierarchy_buttons_frame.update_idletasks()
+                
+                # 方法3: 延迟调用invoke方法确保UI渲染完成
+                def force_select():
+                    radio_buttons[default_hierarchy].invoke()
+                    logger.info(f"🔍 强制触发单选按钮选中状态: {default_hierarchy}")
+                    logger.info(f"🔍 invoke后变量值: {self.table_hierarchy_var.get()}")
+                
+                self.root.after(50, force_select)
+                logger.info(f"🔍 准备强制触发单选按钮选中状态: {default_hierarchy}")
+            
+            logger.info(f"🔍 数据层次选择变量当前值: {self.table_hierarchy_var.get()}")
+            
+            # 延迟验证选中状态
+            self.root.after(100, lambda: logger.info(f"🔍 延迟验证 - 数据层次选择变量值: {self.table_hierarchy_var.get()}"))
             
             # 右侧下部分：数据表格字段配置
             table_info_frame = ttk.LabelFrame(right_container, text="数据表格字段配置")
@@ -1544,11 +1579,33 @@ class ConfigManagerUI:
         
         # 注意：不在这里清除忽略标志，由调用方统一管理
     
-    def on_hierarchy_change(self):
-        """数据层次选择改变时刷新表格字段配置"""
+    def on_hierarchy_change_with_value(self, hierarchy_value):
+        """数据层次选择改变时刷新表格字段配置（带参数版本）"""
+        # 确保变量值正确更新
+        old_value = self.table_hierarchy_var.get()
+        self.table_hierarchy_var.set(hierarchy_value)
+        new_value = self.table_hierarchy_var.get()
+        logger.info(f"🔍 on_hierarchy_change_with_value被调用，层次变化: {old_value} -> {new_value}")
+        
         factor_data = self.get_current_factor_data()
         if factor_data and hasattr(self, 'table_available_listbox'):
+            logger.info(f"🔍 准备刷新表格字段，使用层次: {new_value}")
             self.refresh_table_info_fields(factor_data)
+        else:
+            logger.warning(f"🔍 无法刷新表格字段 - factor_data: {factor_data is not None}, has_listbox: {hasattr(self, 'table_available_listbox')}")
+    
+    def on_hierarchy_change(self):
+        """数据层次选择改变时刷新表格字段配置（无参数版本，保持兼容性）"""
+        # 添加调试日志确认变量值变化
+        current_hierarchy = self.table_hierarchy_var.get()
+        logger.info(f"🔍 on_hierarchy_change被调用，当前层次变量值: {current_hierarchy}")
+        
+        factor_data = self.get_current_factor_data()
+        if factor_data and hasattr(self, 'table_available_listbox'):
+            logger.info(f"🔍 准备刷新表格字段，使用层次: {current_hierarchy}")
+            self.refresh_table_info_fields(factor_data)
+        else:
+            logger.warning(f"🔍 无法刷新表格字段 - factor_data: {factor_data is not None}, has_listbox: {hasattr(self, 'table_available_listbox')}")
     
     def on_table_hierarchy_change(self, factor_data):
         """数据层次改变时刷新字段列表"""
