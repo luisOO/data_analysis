@@ -1558,24 +1558,34 @@ class ConfigManagerUI:
         
         logger.info(f"刷新表格字段列表，当前层次: {hierarchy}")
         
-        # 获取该层次的所有可用字段
+        # 获取该层次的所有可用字段（作用范围包含子因子表格的字段）
         all_fields = self.config_data.get("display_names", {})
-        hierarchy_fields = [field for field, info in all_fields.items() 
-                           if hierarchy in info.get("scope", [])]
+        hierarchy_fields = []
+        
+        for field, info in all_fields.items():
+            scope = info.get("scope", [])
+            # 处理scope可能是字符串或数组的情况
+            if isinstance(scope, str):
+                scope = [scope]
+            # 检查作用范围是否包含"子因子表格"
+            if "子因子表格" in scope:
+                hierarchy_fields.append(field)
+        
+        logger.info(f"找到作用范围包含子因子表格的字段: {hierarchy_fields}")
         
         # 获取已选择字段
         selected_fields = factor_data.get("table_info", {}).get(hierarchy, [])
         
-        # 填充可选字段（排除已选择的）
+        # 填充可选字段（排除已选择的）- 只显示中文名称
         for field in hierarchy_fields:
             if field not in selected_fields:
                 display_name = all_fields.get(field, {}).get("display_name", field)
-                self.table_available_listbox.insert(tk.END, f"{field} ({display_name})")
+                self.table_available_listbox.insert(tk.END, display_name)
         
-        # 填充已选择字段
+        # 填充已选择字段 - 只显示中文名称
         for field in selected_fields:
             display_name = all_fields.get(field, {}).get("display_name", field)
-            self.table_selected_listbox.insert(tk.END, f"{field} ({display_name})")
+            self.table_selected_listbox.insert(tk.END, display_name)
         
         # 注意：不在这里清除忽略标志，由调用方统一管理
     
@@ -1631,7 +1641,9 @@ class ConfigManagerUI:
                 break
         
         if not field_name:
-            messagebox.showerror("错误", "无法找到对应的字段！")
+            # 如果找不到对应字段，直接从界面删除该项
+            self.table_selected_listbox.delete(selection[0])
+            logger.info(f"删除了不存在的字段: {selected_display_name}")
             return
         
         # 获取当前选中的子因子
@@ -1676,7 +1688,9 @@ class ConfigManagerUI:
                 break
         
         if not field_name:
-            messagebox.showerror("错误", "无法找到对应的字段！")
+            # 如果找不到对应字段，直接从界面删除该项
+            self.table_selected_listbox.delete(selection[0])
+            logger.info(f"删除了不存在的字段: {selected_display_name}")
             return
         
         # 获取当前选中的子因子
@@ -1799,18 +1813,30 @@ class ConfigManagerUI:
             messagebox.showwarning("警告", "请先选择一个字段！")
             return
         
-        # 获取选中的字段
-        selected_text = self.table_available_listbox.get(selection[0])
-        field_name = selected_text.split(" (")[0]
+        # 获取选中的中文名称
+        selected_display_name = self.table_available_listbox.get(selection[0])
+        
+        # 根据中文名称找到对应的字段名
+        field_name = None
+        display_names = self.config_data.get("display_names", {})
+        for field, field_info in display_names.items():
+            if field_info.get("display_name", field) == selected_display_name:
+                field_name = field
+                break
+        
+        if not field_name:
+            # 如果找不到对应字段，直接从界面删除该项
+            self.table_selected_listbox.delete(selection[0])
+            logger.info(f"删除了不存在的字段: {selected_display_name}")
+            return
         
         # 获取当前选中的子因子和数据层次
-        category_selection = self.get_category_selection()
-        subfactor_selection = self.subfactor_listbox.curselection()
+        factor_data = self.get_current_factor_data()
         hierarchy = self.table_hierarchy_var.get()
         
-        if category_selection and subfactor_selection:
-            category_name = self.get_selected_category()
-            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+        if factor_data and factor_data.get("name"):
+            subfactor_name = factor_data.get("name")
+            category_name = self.find_category_for_subfactor(subfactor_name)
             
             # 更新配置数据
             factors = self.config_data.get("factor_categories", {}).get(category_name, [])
@@ -1825,6 +1851,8 @@ class ConfigManagerUI:
             
             # 刷新界面
             self.refresh_table_info_fields(self.get_current_factor_data())
+            # 保存配置文件
+            self.save_config(show_success_message=False)
             logger.info(f"添加表格字段: {field_name} ({hierarchy})")
     
     def remove_table_field(self):
@@ -1834,18 +1862,32 @@ class ConfigManagerUI:
             messagebox.showwarning("警告", "请先选择一个字段！")
             return
         
-        # 获取选中的字段
-        selected_text = self.table_selected_listbox.get(selection[0])
-        field_name = selected_text.split(" (")[0]
+        # 获取选中的中文名称
+        selected_display_name = self.table_selected_listbox.get(selection[0])
+        
+        # 根据中文名称找到对应的字段名
+        field_name = None
+        display_names = self.config_data.get("display_names", {})
+        for field, field_info in display_names.items():
+            if field_info.get("display_name", field) == selected_display_name:
+                field_name = field
+                break
+        
+        if not field_name:
+            # 如果在display_names中找不到，尝试用显示名称作为字段名
+            field_name = selected_display_name
+            logger.info(f"未在display_names中找到字段，使用显示名称作为字段名: {field_name}")
+        
+        # 直接删除选中项
+        self.table_selected_listbox.delete(selection[0])
         
         # 获取当前选中的子因子和数据层次
-        category_selection = self.get_category_selection()
-        subfactor_selection = self.subfactor_listbox.curselection()
+        factor_data = self.get_current_factor_data()
         hierarchy = self.table_hierarchy_var.get()
         
-        if category_selection and subfactor_selection:
-            category_name = self.get_selected_category()
-            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+        if factor_data and factor_data.get("name"):
+            subfactor_name = factor_data.get("name")
+            category_name = self.find_category_for_subfactor(subfactor_name)
             
             # 更新配置数据
             factors = self.config_data.get("factor_categories", {}).get(category_name, [])
@@ -1858,6 +1900,8 @@ class ConfigManagerUI:
             
             # 刷新界面
             self.refresh_table_info_fields(self.get_current_factor_data())
+            # 保存配置文件
+            self.save_config(show_success_message=False)
             logger.info(f"移除表格字段: {field_name} ({hierarchy})")
     
     def move_table_field_up(self):
@@ -1870,12 +1914,11 @@ class ConfigManagerUI:
         hierarchy = self.table_hierarchy_var.get()
         
         # 获取当前选中的子因子
-        category_selection = self.get_category_selection()
-        subfactor_selection = self.subfactor_listbox.curselection()
+        factor_data = self.get_current_factor_data()
         
-        if category_selection and subfactor_selection:
-            category_name = self.get_selected_category()
-            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+        if factor_data and factor_data.get("name"):
+            subfactor_name = factor_data.get("name")
+            category_name = self.find_category_for_subfactor(subfactor_name)
             
             # 更新配置数据
             factors = self.config_data.get("factor_categories", {}).get(category_name, [])
@@ -1889,6 +1932,8 @@ class ConfigManagerUI:
             # 刷新界面并保持选择
             self.refresh_table_info_fields(self.get_current_factor_data())
             self.table_selected_listbox.selection_set(index-1)
+            # 保存配置文件
+            self.save_config(show_success_message=False)
     
     def move_table_field_down(self):
         """下移表格字段"""
@@ -1904,12 +1949,11 @@ class ConfigManagerUI:
         hierarchy = self.table_hierarchy_var.get()
         
         # 获取当前选中的子因子
-        category_selection = self.get_category_selection()
-        subfactor_selection = self.subfactor_listbox.curselection()
+        factor_data = self.get_current_factor_data()
         
-        if category_selection and subfactor_selection:
-            category_name = self.get_selected_category()
-            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+        if factor_data and factor_data.get("name"):
+            subfactor_name = factor_data.get("name")
+            category_name = self.find_category_for_subfactor(subfactor_name)
             
             # 更新配置数据
             factors = self.config_data.get("factor_categories", {}).get(category_name, [])
@@ -1923,6 +1967,8 @@ class ConfigManagerUI:
             # 刷新界面并保持选择
             self.refresh_table_info_fields(self.get_current_factor_data())
             self.table_selected_listbox.selection_set(index+1)
+            # 保存配置文件
+            self.save_config(show_success_message=False)
     
     def get_current_factor_data(self):
         """获取当前选中子因子的数据"""

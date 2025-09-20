@@ -34,7 +34,8 @@
       {
         "name": "全额预付优惠率",
         "basic_info": [
-          "partCode"
+          "partCode",
+          "calculateDate"
         ],
         "table_info": {
           "model": [
@@ -43,10 +44,7 @@
             "productName"
           ],
           "part": [
-            "partCode",
-            "productName",
-            "capitalOccupation",
-            "regionGrossMarginHardware"
+            "capitalOccupation"
           ]
         }
       },
@@ -65,13 +63,12 @@
             "totalCgp"
           ],
           "model": [
-            "totalCgp"
+            "capitalOccupation"
           ],
           "part": [
             "partCode",
             "productName",
-            "capitalOccupation",
-            "regionGrossMarginHardware"
+            "capitalOccupation"
           ]
         }
       }
