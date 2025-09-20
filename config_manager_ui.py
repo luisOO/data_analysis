@@ -409,26 +409,43 @@ class ConfigManagerUI:
         
             # 说明标签
             info_label = ttk.Label(tab_frame, text="配置因子分类及其子因子信息", font=('Arial', 10, 'bold'))
-            info_label.pack(pady=(10, 5))
+            info_label.grid(row=0, column=0, pady=(10, 5))
         
-            # 主容器 - 左右结构
+            # 配置tab_frame使用grid布局
+            tab_frame.grid_columnconfigure(0, weight=1)
+            tab_frame.grid_rowconfigure(1, weight=1)  # 主容器行
+            
+            # 主容器 - 左右结构，使用grid布局精确控制宽度占比
             main_container = ttk.Frame(tab_frame)
-            main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+            main_container.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+            
+            # 使用grid布局管理器来控制左右区域的宽度比例
+            # 配置主容器的列权重，左侧占1，右侧占3，实现1:3的宽度比例
+            main_container.grid_columnconfigure(0, weight=1)  # 左侧占1/4
+            main_container.grid_columnconfigure(1, weight=3)  # 右侧占3/4
+            main_container.grid_rowconfigure(0, weight=1)
+            
+            # 左侧容器 - 上下结构，设置宽度占比1/4
+            left_container = ttk.Frame(main_container, width=250)
+            left_container.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+            left_container.grid_propagate(False)  # 防止子组件改变容器大小
+            
+            # 使用grid布局来精确控制左侧区域的高度分配
+            left_container.grid_rowconfigure(0, weight=1)  # 因子分类区域占1/3
+            left_container.grid_rowconfigure(1, weight=1)  # 子因子区域占1/3
+            left_container.grid_rowconfigure(2, weight=1)  # 预留区域占1/3
+            left_container.grid_columnconfigure(0, weight=1)
         
-            # 左侧容器 - 上下结构
-            left_container = ttk.Frame(main_container)
-            left_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
-            # 左侧上部分：因子分类
+            # 左侧上部分：因子分类 - 占整体高度的1/3
             category_frame = ttk.LabelFrame(left_container, text="因子分类")
-            category_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+            category_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
             
             # 因子分类列表框架
             category_list_frame = ttk.Frame(category_frame)
             category_list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             
             # 因子分类树形控件
-            self.category_treeview = ttk.Treeview(category_list_frame, selectmode='browse', height=8)
+            self.category_treeview = ttk.Treeview(category_list_frame, selectmode='browse', height=6)
             self.category_treeview.heading('#0', text='因子分类', anchor='w')
             self.category_treeview.column('#0', width=200, minwidth=100)
             self.category_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -445,9 +462,9 @@ class ConfigManagerUI:
             ttk.Button(category_btn_frame, text="编辑分类", command=self.edit_factor_category).pack(side=tk.LEFT, padx=2)
             ttk.Button(category_btn_frame, text="删除分类", command=self.delete_factor_category).pack(side=tk.LEFT, padx=2)
             
-            # 左侧下部分：子因子
+            # 左侧中部分：子因子 - 占整体高度的1/3
             subfactor_frame = ttk.LabelFrame(left_container, text="子因子")
-            subfactor_frame.pack(fill=tk.BOTH, expand=True)
+            subfactor_frame.grid(row=1, column=0, sticky="nsew", pady=5)
             
             # 子因子选择区域
             subfactor_container = ttk.Frame(subfactor_frame)
@@ -488,13 +505,19 @@ class ConfigManagerUI:
             ttk.Button(operation_frame, text="编辑子因子", command=self.edit_sub_factor_new).pack(side=tk.LEFT, padx=2)
             ttk.Button(operation_frame, text="删除子因子", command=self.delete_sub_factor_new).pack(side=tk.LEFT, padx=2)
             
-            # 右侧容器 - 上下结构
+            # 右侧容器 - 上下结构，设置宽度占比3/4
             right_container = ttk.Frame(main_container)
-            right_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+            right_container.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
             
+            # 使用grid布局来精确控制右侧区域的高度分配
+            right_container.grid_rowconfigure(0, weight=40, uniform="content")  # 子因子基本信息配置占40%
+            right_container.grid_rowconfigure(1, weight=0, minsize=60)  # 数据层次选择固定高度
+            right_container.grid_rowconfigure(2, weight=60, uniform="content")  # 数据表格字段配置占60%
+            right_container.grid_columnconfigure(0, weight=1)
+        
             # 右侧上部分：子因子基本信息配置
             basic_info_frame = ttk.LabelFrame(right_container, text="子因子基本信息配置")
-            basic_info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+            basic_info_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
             
             # 基本信息配置内容区域
             self.basic_info_content_frame = ttk.Frame(basic_info_frame)
@@ -505,7 +528,17 @@ class ConfigManagerUI:
             
             # 中间：数据层次选择区域
             hierarchy_selection_frame = ttk.LabelFrame(right_container, text="数据层次选择")
-            hierarchy_selection_frame.pack(fill=tk.X, pady=5)
+            hierarchy_selection_frame.grid(row=1, column=0, sticky="ew", pady=5)
+            
+            # 添加调试代码打印真实高度
+            def print_hierarchy_height():
+                try:
+                    height = hierarchy_selection_frame.winfo_height()
+                    logger.info(f"数据层次选择区域真实高度: {height}px")
+                except Exception as e:
+                    logger.debug(f"获取高度失败: {e}")
+            
+            hierarchy_selection_frame.bind('<Configure>', lambda e: self.root.after_idle(print_hierarchy_height))
             
             # 从配置文件获取默认层次级别
             default_hierarchy = self.config_data.get("default_hierarchy_level", "part")
@@ -553,7 +586,7 @@ class ConfigManagerUI:
             
             # 右侧下部分：数据表格字段配置
             table_info_frame = ttk.LabelFrame(right_container, text="数据表格字段配置")
-            table_info_frame.pack(fill=tk.BOTH, expand=True)
+            table_info_frame.grid(row=2, column=0, sticky="nsew")
             
             # 表格字段配置内容区域
             self.table_info_content_frame = ttk.Frame(table_info_frame)
@@ -1312,7 +1345,7 @@ class ConfigManagerUI:
         available_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         self.basic_available_listbox = tk.Listbox(available_frame, selectmode=tk.SINGLE,
-                                                 font=('微软雅黑', 9), height=10,
+                                                 font=('微软雅黑', 9),
                                                  bg='#f8f9fa', selectbackground='#007acc',
                                                  selectforeground='white', borderwidth=1,
                                                  relief='solid', highlightthickness=0)
@@ -1340,7 +1373,7 @@ class ConfigManagerUI:
         selected_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         self.basic_selected_listbox = tk.Listbox(selected_frame, selectmode=tk.SINGLE,
-                                                font=('微软雅黑', 9), height=10,
+                                                font=('微软雅黑', 9),
                                                 bg='#f0f8ff', selectbackground='#007acc',
                                                 selectforeground='white', borderwidth=1,
                                                 relief='solid', highlightthickness=0)
@@ -1380,7 +1413,7 @@ class ConfigManagerUI:
         available_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         self.table_available_listbox = tk.Listbox(available_frame, selectmode=tk.SINGLE,
-                                                 font=('微软雅黑', 9), height=8,
+                                                 font=('微软雅黑', 9),
                                                  bg='#f8f9fa', selectbackground='#007acc',
                                                  selectforeground='white', borderwidth=1,
                                                  relief='solid', highlightthickness=0)
@@ -1407,7 +1440,7 @@ class ConfigManagerUI:
         selected_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         self.table_selected_listbox = tk.Listbox(selected_frame, selectmode=tk.SINGLE,
-                                                font=('微软雅黑', 9), height=8,
+                                                font=('微软雅黑', 9),
                                                 bg='#f0f8ff', selectbackground='#007acc',
                                                 selectforeground='white', borderwidth=1,
                                                 relief='solid', highlightthickness=0)
