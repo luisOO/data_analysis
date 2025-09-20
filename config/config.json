@@ -13,7 +13,8 @@
     "calModel",
     "saleScenceName",
     "calcLevel",
-    "productName"
+    "productName",
+    "arCapitalTakesUpCostSoftware"
   ],
   "data_hierarchy_names": {
     "total": "整单层",
@@ -33,61 +34,41 @@
       {
         "name": "全额预付优惠率",
         "basic_info": [
-          "saleScenceName",
-          "fullPrepayFlag",
-          "signSubject",
-          "countryCode"
+          "partCode",
+          "calculateDate"
         ],
         "table_info": {
           "model": [
-            "netSalesRevenue",
-            "listPriceTotalOutHardware",
             "productName"
           ],
           "part": [
-            "partCode",
-            "productName",
-            "capitalOccupation",
-            "regionGrossMarginHardware"
+            "capitalOccupation"
           ]
         }
       },
       {
         "name": "总代进销存",
         "basic_info": [
-          "businessCode",
-          "totalCgp"
+          "businessCode"
         ],
         "table_info": {
           "total": [
-            "totalCgp",
             "arCapitalTakesUpCostSoftware"
           ],
-          "boq": [
-            "totalCgp"
-          ],
+          "boq": [],
           "model": [
-            "totalCgp"
+            "capitalOccupation"
           ],
           "part": [
             "partCode",
             "productName",
-            "capitalOccupation",
-            "regionGrossMarginHardware"
+            "capitalOccupation"
           ]
         }
       }
     ]
   },
   "display_names": {
-    "netSalesRevenue": {
-      "display_name": "净销售收入",
-      "scope": "整单基本信息"
-    },
-    "listPriceTotalOutHardware": {
-      "display_name": "硬件外总价",
-      "scope": "整单基本信息"
-    },
     "arCapitalTakesUpCostSoftware": {
       "display_name": "软件资本成本",
       "scope": "整单基本信息"

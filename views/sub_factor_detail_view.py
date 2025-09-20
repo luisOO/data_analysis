@@ -524,19 +524,11 @@ class SubFactorDetailView:
     
     def on_hierarchy_level_select(self, level):
         """当用户选择数据层次时触发"""
-        # 标记层级切换状态
-        self._hierarchy_changing = True
-        
         # 保存当前选择的层级
         self.current_level = level
         self.controller.on_hierarchy_node_select(level)
         # 重置搜索框
         self.search_var.set("")
-        
-        # 延迟重置层级切换标记
-        def reset_hierarchy_changing():
-            self._hierarchy_changing = False
-        self.frame.after(300, reset_hierarchy_changing)
         
     def on_search_change(self, *args):
         """当搜索框内容变化时触发"""

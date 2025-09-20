@@ -109,8 +109,14 @@ class FactorView:
         # 默认选择第一个子因子
         if factors:
             first_factor_name = factors[0]['name']
-            self.subfactor_var.set(first_factor_name)
+            # 使用安全的方式设置默认选择，避免影响其他组件的选择状态
+            self.safe_set_subfactor_selection(first_factor_name)
             self.on_subfactor_select(first_factor_name)
+    
+    def safe_set_subfactor_selection(self, factor_name):
+        """安全的子因子选择方法，避免影响其他组件的选择状态"""
+        # 直接设置变量值，这会自动更新所有关联的单选按钮
+        self.subfactor_var.set(factor_name)
     
     def on_subfactor_select(self, subfactor):
         """处理子因子选择事件"""
