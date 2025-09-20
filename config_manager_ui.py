@@ -1364,6 +1364,11 @@ class ConfigManagerUI:
         self.basic_selected_listbox.configure(yscrollcommand=basic_selected_scrollbar.set)
         basic_selected_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # 绑定双击事件
+        self.basic_available_listbox.bind('<Double-1>', lambda e: self.add_basic_field())
+        self.basic_selected_listbox.bind('<Double-1>', lambda e: self.remove_basic_field())
+        logger.info("已绑定基本信息字段列表双击事件")
+        
         # 加载数据
         self.refresh_basic_info_fields(factor_data)
     
@@ -1430,6 +1435,11 @@ class ConfigManagerUI:
         table_selected_scrollbar = ttk.Scrollbar(selected_frame, orient=tk.VERTICAL, command=self.table_selected_listbox.yview)
         self.table_selected_listbox.configure(yscrollcommand=table_selected_scrollbar.set)
         table_selected_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 绑定双击事件
+        self.table_available_listbox.bind('<Double-1>', lambda e: self.add_table_field())
+        self.table_selected_listbox.bind('<Double-1>', lambda e: self.remove_table_field())
+        logger.info("已绑定数据表格字段列表双击事件")
         
         # 加载数据
         logger.info("开始刷新表格字段数据")
