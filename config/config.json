@@ -39,8 +39,6 @@
         ],
         "table_info": {
           "model": [
-            "netSalesRevenue",
-            "listPriceTotalOutHardware",
             "productName"
           ],
           "part": [
@@ -75,14 +73,6 @@
     ]
   },
   "display_names": {
-    "netSalesRevenue": {
-      "display_name": "净销售收入",
-      "scope": "整单基本信息"
-    },
-    "listPriceTotalOutHardware": {
-      "display_name": "硬件外总价",
-      "scope": "整单基本信息"
-    },
     "arCapitalTakesUpCostSoftware": {
       "display_name": "软件资本成本",
       "scope": "整单基本信息"

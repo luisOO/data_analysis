@@ -12,8 +12,6 @@ import logging
 from typing import Dict, List, Any, Optional
 import os
 
-# 配置日志 - 使用应用统一的日志配置
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')  # 注释掉避免冲突
 logger = logging.getLogger(__name__)
 
 class ConfigManagerUI:
@@ -40,8 +38,6 @@ class ConfigManagerUI:
         
         # 字段配置页面内容加载状态
         self.display_names_content_loaded = False
-        
-        # 移除了循环依赖防护标志，因为因子分类和子因子是简单的父子级关系
     
     def load_config(self):
         """加载配置文件"""
@@ -530,15 +526,7 @@ class ConfigManagerUI:
             hierarchy_selection_frame = ttk.LabelFrame(right_container, text="数据层次选择")
             hierarchy_selection_frame.grid(row=1, column=0, sticky="ew", pady=5)
             
-            # 添加调试代码打印真实高度
-            def print_hierarchy_height():
-                try:
-                    height = hierarchy_selection_frame.winfo_height()
-                    logger.info(f"数据层次选择区域真实高度: {height}px")
-                except Exception as e:
-                    logger.debug(f"获取高度失败: {e}")
-            
-            hierarchy_selection_frame.bind('<Configure>', lambda e: self.root.after_idle(print_hierarchy_height))
+
             
             # 从配置文件获取默认层次级别
             default_hierarchy = self.config_data.get("default_hierarchy_level", "part")
@@ -879,23 +867,7 @@ class ConfigManagerUI:
             
             logger.info(f"移动字段位置: {index} -> {new_index}")
     
-    # ==================== 整单基本信息字段操作（已废弃的旧方法） ====================
-    
-    def add_document_field(self):
-        """添加整单基本信息字段（已废弃，保留兼容性）"""
-        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
-    
-    def remove_document_field(self):
-        """删除整单基本信息字段（已废弃，保留兼容性）"""
-        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
-    
-    def move_document_field(self, direction):
-        """移动整单基本信息字段位置（已废弃，保留兼容性）"""
-        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
-    
-    def edit_document_field(self):
-        """编辑整单基本信息字段（已废弃，保留兼容性）"""
-        messagebox.showinfo("提示", "请使用新的左右分栏界面进行字段操作")
+
     
     # ==================== 因子分类操作 ====================
     
@@ -1607,9 +1579,9 @@ class ConfigManagerUI:
                 display_name = display_names.get(field, {}).get("display_name", field)
                 self.basic_available_listbox.insert(tk.END, f"{display_name}")
                 added_to_available += 1
-                logger.debug(f"添加到可选列表: {field} -> {display_name}")
+
         
-        logger.info(f"实际添加到可选列表的字段数: {added_to_available}")
+
         
         # 填充已选择字段（按顺序显示）
         added_to_selected = 0
@@ -1618,12 +1590,12 @@ class ConfigManagerUI:
                 display_name = display_names.get(field, {}).get("display_name", field)
                 self.basic_selected_listbox.insert(tk.END, f"{display_name}")
                 added_to_selected += 1
-                logger.debug(f"添加到已选列表: {field} -> {display_name}")
+
             else:
                 logger.warning(f"已选字段 '{field}' 在display_names中不存在")
         
-        logger.info(f"实际添加到已选列表的字段数: {added_to_selected}")
-        logger.info(f"基本信息字段刷新完成")
+
+
     
     def refresh_table_info_fields(self, factor_data):
         """刷新表格字段列表"""
@@ -2390,15 +2362,11 @@ class ConfigManagerUI:
         
         # 加载显示名称
         display_names = self.config_data.get("display_names", {})
-        # 添加调试日志
-        logger.info(f"刷新显示名称列表 - 配置数据: {display_names}")
         # 确保search_var已初始化并正确获取值
         if hasattr(self, 'search_var'):
             search_text = self.search_var.get().lower()
-            logger.info(f"搜索文本: '{search_text}'")
         else:
             search_text = ""
-            logger.warning("搜索变量未初始化")
         
         for field, field_config in sorted(display_names.items()):
             # 兼容新旧格式
@@ -2410,11 +2378,12 @@ class ConfigManagerUI:
                 display_name = field_config
                 scope = '整单基本信息'
             
-            # 搜索过滤
-            if not search_text or search_text in field.lower() or search_text in display_name.lower() or search_text in scope.lower():
+            # 搜索过滤 - 处理scope可能是列表的情况
+            scope_str = ', '.join(scope) if isinstance(scope, list) else scope
+            if not search_text or search_text in field.lower() or search_text in display_name.lower() or search_text in scope_str.lower():
                 # 显示三列数据：字段名、显示名称、作用范围
                 item_id = self.display_names_tree.insert("", tk.END, values=(field, display_name, scope))
-                # 注意：由于使用show="headings"，不能设置#0列，字段名已经在values中
+
     
     def filter_display_names(self, event=None):
         """过滤显示名称"""
@@ -2424,7 +2393,7 @@ class ConfigManagerUI:
         else:
             search_text = self.search_var.get() if hasattr(self, 'search_var') else ""
         
-        logger.info(f"过滤显示名称 - 搜索文本: '{search_text}'")
+
         
         # 直接在这里进行过滤，而不是调用refresh_display_names
         # 清空树
@@ -2433,7 +2402,7 @@ class ConfigManagerUI:
         
         # 加载显示名称
         display_names = self.config_data.get("display_names", {})
-        logger.info(f"过滤显示名称 - 配置数据数量: {len(display_names)}")
+
         
         # 确保搜索文本是字符串并转为小写
         search_text = search_text.lower()
@@ -2451,13 +2420,14 @@ class ConfigManagerUI:
                 display_name = field_config
                 scope = '整单基本信息'
             
-            # 搜索过滤
-            if not search_text or search_text in field.lower() or search_text in display_name.lower() or search_text in scope.lower():
+            # 搜索过滤 - 处理scope可能是列表的情况
+            scope_str = ', '.join(scope) if isinstance(scope, list) else scope
+            if not search_text or search_text in field.lower() or search_text in display_name.lower() or search_text in scope_str.lower():
                 # 显示三列数据：字段名、显示名称、作用范围
                 item_id = self.display_names_tree.insert("", tk.END, values=(field, display_name, scope))
                 match_count += 1
         
-        logger.info(f"过滤显示名称 - 匹配项目数: {match_count}")
+
     
     def add_display_name(self):
         """添加显示名称"""
@@ -2530,16 +2500,18 @@ class ConfigManagerUI:
         # 默认选中第一项
         scope_vars[scope_options[0]].set(True)
         
-        # 强制设置复选框状态，确保移除alternate状态
+        # 强制刷新所有复选框状态，避免alternate状态
         for option, cb in scope_checkboxes.items():
+            cb.update_idletasks()
             if scope_vars[option].get():
-                cb.state(['selected', '!alternate'])
+                cb.state(['!alternate', 'selected'])
             else:
-                cb.state(['!selected', '!alternate'])
+                cb.state(['!alternate', '!selected'])
         
         # 添加调试日志
         logger.info(f"添加字段配置 - 初始化作用范围选项: {scope_options}, 默认选中: ['整单基本信息']")
-        logger.info(f"[调试] 添加字段配置 - 复选框状态: {[(option, var.get(), scope_checkboxes[option].state()) for option, var in scope_vars.items()]}")
+        logger.info(f"[调试] 添加字段配置 - 复选框变量值: {[(option, var.get()) for option, var in scope_vars.items()]}")
+        logger.info(f"[修复] 复选框现在只有两种状态：选中(True)和未选中(False)，不再有三态问题")
         
         # 分隔线
         separator = ttk.Separator(main_frame, orient='horizontal')
@@ -2585,16 +2557,15 @@ class ConfigManagerUI:
                 "scope": selected_scopes  # 保存为列表
             }
             
-            # 添加调试日志
-            logger.info(f"[调试] 添加字段配置到内存: {field} -> {display_name} ({selected_scopes})")
+
             
             # 保存配置到文件
             try:
                 with open(self.config_path, 'w', encoding='utf-8') as f:
                     json.dump(self.config_data, f, ensure_ascii=False, indent=2)
-                logger.info(f"[调试] 配置文件保存成功: {self.config_path}")
+
             except Exception as e:
-                logger.error(f"[调试] 保存配置文件失败: {e}")
+                logger.error(f"保存配置文件失败: {e}")
                 messagebox.showerror("错误", f"保存配置文件失败: {e}", parent=dialog)
                 return
                 
@@ -2677,14 +2648,7 @@ class ConfigManagerUI:
             display_name_entry.focus()
             display_name_entry.select_range(0, tk.END)
             
-            # 添加详细调试日志（在设置值之后）
-            logger.info(f"[调试] 初始化显示名称输入框 - StringVar设置后值: '{display_name_var.get()}', Entry显示值: '{display_name_entry.get()}'")
-            
-            # 绑定输入框变化事件来监控输入
-            def on_entry_change(*args):
-                logger.info(f"[调试] 输入框内容变化 - StringVar值: '{display_name_var.get()}', Entry值: '{display_name_entry.get()}'")
-            
-            display_name_var.trace('w', on_entry_change)
+
             
             # 作用范围多选复选框
             scope_frame = ttk.Frame(main_frame)
@@ -2703,17 +2667,20 @@ class ConfigManagerUI:
             # 如果old_scope是字符串，转换为列表
             old_scopes = []
             if isinstance(old_scope, str):
-                # 处理可能的逗号分隔字符串
+                # 处理可能的逗号分隔或空格分隔字符串
                 if ',' in old_scope:
                     old_scopes = [s.strip() for s in old_scope.split(',')]
+                elif ' ' in old_scope:
+                    # 处理空格分隔的字符串（如'整单基本信息 子因子基本信息'）
+                    old_scopes = [s.strip() for s in old_scope.split() if s.strip()]
                 else:
                     old_scopes = [old_scope.strip()]
             elif isinstance(old_scope, list):
                 old_scopes = old_scope
             
             # 添加调试日志
-            logger.info(f"[调试] 编辑字段配置 - 处理后的作用范围列表: {old_scopes}")
-            logger.info(f"[调试] 编辑字段配置 - 原始作用范围值: {old_scope}, 类型: {type(old_scope)}")
+            logger.info(f"编辑字段配置 - 原始作用范围: {old_scope}, 类型: {type(old_scope)}")
+            logger.info(f"编辑字段配置 - 解析后作用范围列表: {old_scopes}")
             
             # 确保复选框正确初始化
             for option in scope_options:
@@ -2728,7 +2695,7 @@ class ConfigManagerUI:
                 elif option in old_scopes:
                     is_selected = True
                 
-                logger.info(f"[调试] 选项 '{option}' 是否选中: {is_selected}")
+                logger.info(f"编辑字段配置 - 复选框 '{option}' 初始状态: {is_selected}")
                 
                 var = tk.BooleanVar(value=is_selected)
                 scope_vars[option] = var
@@ -2736,14 +2703,16 @@ class ConfigManagerUI:
                 cb.pack(anchor=tk.W, pady=2)
                 scope_checkboxes[option] = cb  # 存储复选框对象
                 
-                # 强制设置复选框状态，并确保移除alternate状态
+                # 强制刷新复选框状态，避免alternate状态
+                cb.update_idletasks()
                 if is_selected:
-                    cb.state(['selected', '!alternate'])
+                    cb.state(['!alternate', 'selected'])
                 else:
-                    cb.state(['!selected', '!alternate'])
+                    cb.state(['!alternate', '!selected'])
                 
-                # 添加调试日志
-                logger.info(f"[调试] 复选框 '{option}' 初始状态: {var.get()}, 复选框状态: {cb.state()}")
+                logger.info(f"编辑字段配置 - 复选框 '{option}' BooleanVar值: {var.get()}, 组件状态: {cb.state()}")
+                
+
             
             # 分隔线
             separator = ttk.Separator(main_frame, orient='horizontal')
@@ -2760,18 +2729,14 @@ class ConfigManagerUI:
                 # 获取复选框选中的值
                 new_scopes = []
                 
-                # 添加详细调试日志
-                logger.info(f"[调试] 保存前获取值 - Entry.get(): '{display_name_entry.get()}'")
-                
-                # 直接检查复选框的状态而不是变量值
-                for option, cb in scope_checkboxes.items():
-                    is_selected = 'selected' in cb.state()
-                    logger.info(f"[调试] 复选框 '{option}' 状态: {cb.state()}, 是否选中: {is_selected}")
+                # 通过BooleanVar获取复选框的选中状态
+                for option, var in scope_vars.items():
+                    is_selected = var.get()
+                    logger.info(f"[调试] 复选框 '{option}' 变量值: {is_selected}")
                     if is_selected:
                         new_scopes.append(option)
                 
-                logger.info(f"[调试] 保存前获取值 - 选中的作用范围: {new_scopes}")
-                logger.info(f"[调试] 保存前处理后 - new_display_name: '{new_display_name}', new_scopes: {new_scopes}")
+
                 logger.info(f"保存字段配置 - 字段: {field}, 新显示名称: '{new_display_name}', 新作用范围: {new_scopes}")
                 
                 if not new_display_name:
@@ -2783,18 +2748,34 @@ class ConfigManagerUI:
                     messagebox.showerror("输入错误", "请至少选择一个作用范围", parent=dialog)
                     return
                 
+                # 获取原有作用范围
+                old_config = self.config_data.get("display_names", {}).get(field, {})
+                old_scope = old_config.get("scope", [])
+                if isinstance(old_scope, str):
+                    old_scope = [old_scope]
+                
+                # 检查作用范围是否发生变化
+                scope_changed = set(old_scope) != set(new_scopes)
+                cleaned_references = []
+                
+                if scope_changed:
+                    # 清理不符合新作用范围的因子配置
+                    cleaned_references = self.clean_factor_configs_by_scope(field, new_scopes)
+                    
+                    if cleaned_references:
+                        # 显示清理确认对话框
+                        clean_message = f"作用范围已变更，以下配置项将被清理：\n" + "\n".join([f"• {ref}" for ref in cleaned_references])
+                        clean_message += "\n\n是否继续保存？"
+                        
+                        if not messagebox.askyesno("确认清理", clean_message, parent=dialog):
+                            return
+                
                 # 保存到配置
                 # 检查是否只有一个作用范围，如果是则保存为字符串，否则保存为列表
                 if len(new_scopes) == 1:
                     scope_value = new_scopes[0]  # 保存为字符串
-                    logger.info(f"[调试] 保存单个作用范围为字符串: {scope_value}")
                 else:
                     scope_value = new_scopes  # 保存为列表
-                    logger.info(f"[调试] 保存多个作用范围为列表: {scope_value}")
-                
-                # 记录修改前的配置数据
-                old_config = self.config_data.get("display_names", {}).get(field, {})
-                logger.info(f"[调试] 修改前的配置数据: {old_config}")
                 
                 # 更新配置数据
                 self.config_data.setdefault("display_names", {})[field] = {
@@ -2802,14 +2783,14 @@ class ConfigManagerUI:
                     "scope": scope_value
                 }
                 
-                # 记录修改后的配置数据
-                new_config = self.config_data.get("display_names", {}).get(field, {})
-                logger.info(f"[调试] 修改后的配置数据: {new_config}")
+                if cleaned_references:
+                    logger.info(f"作用范围变更清理的配置: {cleaned_references}")
+                
+
                 
                 # 直接保存配置到文件，避免重复弹窗
                 try:
-                    # 记录保存前的配置文件路径
-                    logger.info(f"[调试] 准备保存配置文件: {self.config_path}")
+
                     
                     # 保存配置文件
                     with open(self.config_path, 'w', encoding='utf-8') as f:
@@ -2818,18 +2799,18 @@ class ConfigManagerUI:
                     # 验证配置文件是否成功保存
                     if os.path.exists(self.config_path):
                         file_size = os.path.getsize(self.config_path)
-                        logger.info(f"[调试] 配置文件保存成功: {self.config_path}, 文件大小: {file_size} 字节")
+
                         
                         # 读取保存后的文件内容进行验证
                         try:
                             with open(self.config_path, 'r', encoding='utf-8') as f:
                                 saved_data = json.load(f)
                                 saved_field_config = saved_data.get("display_names", {}).get(field, {})
-                                logger.info(f"[调试] 保存后读取的字段配置: {saved_field_config}")
+
                         except Exception as e:
-                            logger.error(f"[调试] 读取保存后的配置文件失败: {e}")
+                            logger.error(f"读取保存后的配置文件失败: {e}")
                     else:
-                        logger.error(f"[调试] 配置文件保存后不存在: {self.config_path}")
+                        logger.error(f"配置文件保存后不存在: {self.config_path}")
                 except Exception as e:
                     logger.error(f"保存配置文件失败: {e}")
                     messagebox.showerror("错误", f"保存配置文件失败: {e}", parent=dialog)
@@ -2858,8 +2839,104 @@ class ConfigManagerUI:
             # 设置默认按钮样式
             save_btn.focus()
     
+    def find_field_references(self, field_name):
+        """查找字段在配置中的所有引用"""
+        references = []
+        
+        # 检查document_info_fields
+        if field_name in self.config_data.get("document_info_fields", []):
+            references.append("整单基本信息字段列表")
+        
+        # 检查factor_categories中的引用
+        factor_categories = self.config_data.get("factor_categories", {})
+        for category_name, factors in factor_categories.items():
+            for factor in factors:
+                # 检查basic_info
+                if field_name in factor.get("basic_info", []):
+                    references.append(f"因子分类 '{category_name}' - 子因子 '{factor['name']}' 的基本信息")
+                
+                # 检查table_info
+                table_info = factor.get("table_info", {})
+                for level, fields in table_info.items():
+                    if field_name in fields:
+                        references.append(f"因子分类 '{category_name}' - 子因子 '{factor['name']}' 的 {level} 层表格信息")
+        
+        return references
+    
+    def cascade_delete_field(self, field_name):
+        """级联删除字段的所有引用"""
+        deleted_references = []
+        
+        # 从document_info_fields中删除
+        document_fields = self.config_data.get("document_info_fields", [])
+        if field_name in document_fields:
+            document_fields.remove(field_name)
+            deleted_references.append("整单基本信息字段列表")
+        
+        # 从factor_categories中删除
+        factor_categories = self.config_data.get("factor_categories", {})
+        for category_name, factors in factor_categories.items():
+            for factor in factors:
+                # 从basic_info中删除
+                basic_info = factor.get("basic_info", [])
+                if field_name in basic_info:
+                    basic_info.remove(field_name)
+                    deleted_references.append(f"因子分类 '{category_name}' - 子因子 '{factor['name']}' 的基本信息")
+                
+                # 从table_info中删除
+                table_info = factor.get("table_info", {})
+                for level, fields in table_info.items():
+                    if field_name in fields:
+                        fields.remove(field_name)
+                        deleted_references.append(f"因子分类 '{category_name}' - 子因子 '{factor['name']}' 的 {level} 层表格信息")
+        
+        return deleted_references
+    
+    def clean_factor_configs_by_scope(self, field_name, new_scopes):
+        """根据新的作用范围清理不符合的因子配置"""
+        cleaned_references = []
+        
+        # 将作用范围转换为列表格式
+        if isinstance(new_scopes, str):
+            new_scopes = [new_scopes]
+        
+        # 定义作用范围与因子配置位置的映射
+        scope_mapping = {
+            "整单基本信息": "document_info_fields",
+            "子因子基本信息": "basic_info",
+            "子因子表格": "table_info"
+        }
+        
+        # 检查document_info_fields
+        if "整单基本信息" not in new_scopes:
+            document_fields = self.config_data.get("document_info_fields", [])
+            if field_name in document_fields:
+                document_fields.remove(field_name)
+                cleaned_references.append("整单基本信息字段列表")
+        
+        # 检查factor_categories中的配置
+        factor_categories = self.config_data.get("factor_categories", {})
+        for category_name, factors in factor_categories.items():
+            for factor in factors:
+                # 检查basic_info
+                if "子因子基本信息" not in new_scopes:
+                    basic_info = factor.get("basic_info", [])
+                    if field_name in basic_info:
+                        basic_info.remove(field_name)
+                        cleaned_references.append(f"因子分类 '{category_name}' - 子因子 '{factor['name']}' 的基本信息")
+                
+                # 检查table_info
+                if "子因子表格" not in new_scopes:
+                    table_info = factor.get("table_info", {})
+                    for level, fields in table_info.items():
+                        if field_name in fields:
+                            fields.remove(field_name)
+                            cleaned_references.append(f"因子分类 '{category_name}' - 子因子 '{factor['name']}' 的 {level} 层表格信息")
+        
+        return cleaned_references
+    
     def delete_display_name(self):
-        """删除显示名称"""
+        """删除显示名称（带级联清理）"""
         selection = self.display_names_tree.selection()
         if selection:
             item = selection[0]
@@ -2867,17 +2944,30 @@ class ConfigManagerUI:
             values = self.display_names_tree.item(item, "values")
             field, display_name, scope = values
             
-            if messagebox.askyesno("确认删除", f"确定要删除字段 '{display_name}' ({field}) 吗？", parent=self.root):
+            # 查找字段引用
+            references = self.find_field_references(field)
+            
+            # 构建确认消息
+            confirm_message = f"确定要删除字段 '{display_name}' ({field}) 吗？"
+            if references:
+                confirm_message += "\n\n以下配置项也将被删除：\n" + "\n".join([f"• {ref}" for ref in references])
+            
+            if messagebox.askyesno("确认删除", confirm_message, parent=self.root):
                 # 记住当前选中项的索引，用于后续恢复焦点
                 current_index = self.display_names_tree.index(item)
-                logger.info(f"删除前选中项索引: {current_index}")
                 
+                # 级联删除字段引用
+                deleted_references = self.cascade_delete_field(field)
+                
+                # 删除display_names中的字段
                 self.config_data.get("display_names", {}).pop(field, None)
+                
                 logger.info(f"删除字段配置: {field}")
+                if deleted_references:
+                    logger.info(f"级联删除的引用: {deleted_references}")
                 
                 # 保存配置到文件，不显示成功弹窗
                 try:
-                    logger.info(f"正在将删除字段 '{field}' 的配置保存到文件...")
                     self.save_config(show_success_message=False)
                     logger.info(f"成功保存配置到文件")
                 except Exception as e:
@@ -2900,12 +2990,10 @@ class ConfigManagerUI:
                     self.display_names_tree.focus_set()
                     self.display_names_tree.focus(item_to_select)
                     self.display_names_tree.see(item_to_select)
-                    logger.info(f"恢复焦点到索引: {current_index}")
                     
                     # 将窗口提到前台
                     self.root.lift()
                     self.root.focus_force()
-                    logger.info("将配置管理窗口提到前台")
     
     def batch_import_display_names(self):
         """批量导入显示名称"""
