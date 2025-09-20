@@ -144,14 +144,14 @@ class ConfigManagerUI:
         
         self.root = tk.Tk()
         self.root.title("业务配置管理")
-        self.root.geometry("1000x700")
-        self.root.minsize(800, 600)
+        self.root.geometry("1000x750")
+        self.root.minsize(800, 650)
         self.root.protocol("WM_DELETE_WINDOW", self.close_config_window)
         
         # 确保窗口居中显示
         self.root.update_idletasks()
         width = 1000
-        height = 700
+        height = 750
         x = (self.root.winfo_screenwidth() // 2) - (width // 2)
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
@@ -160,8 +160,12 @@ class ConfigManagerUI:
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
+        # 创建内容框架（用于选项卡）
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
         # 创建选项卡
-        self.notebook = ttk.Notebook(main_frame)
+        self.notebook = ttk.Notebook(content_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         
         # 绑定标签切换事件
@@ -572,12 +576,18 @@ class ConfigManagerUI:
     
     def create_bottom_buttons(self, parent):
         """创建底部按钮"""
+        # 创建底部按钮框架，固定在底部
         button_frame = ttk.Frame(parent)
-        button_frame.pack(fill=tk.X, pady=(10, 0))
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
         
-        ttk.Button(button_frame, text="保存配置", command=self.save_all_config).pack(side=tk.RIGHT, padx=(5, 0))
-        ttk.Button(button_frame, text="导出配置", command=self.export_config).pack(side=tk.RIGHT, padx=(5, 0))
-        ttk.Button(button_frame, text="导入配置", command=self.import_config).pack(side=tk.RIGHT, padx=(5, 0))
+        # 创建按钮容器，右对齐
+        button_container = ttk.Frame(button_frame)
+        button_container.pack(side=tk.RIGHT)
+        
+        # 按钮从右到左排列
+        ttk.Button(button_container, text="保存配置", command=self.save_all_config).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_container, text="导出配置", command=self.export_config).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_container, text="导入配置", command=self.import_config).pack(side=tk.RIGHT, padx=(5, 0))
     
     # ==================== 整单基本信息字段操作 ====================
     
@@ -792,18 +802,27 @@ class ConfigManagerUI:
         for category_name in factor_categories.keys():
             self.category_treeview.insert('', 'end', text=category_name, open=True)
         
-        # 恢复之前的选择状态
+        # 恢复之前的选择状态或默认选择第一个分类
         if current_selection and current_selection in factor_categories:
             self.select_category_by_name(current_selection)
             logger.debug(f"恢复分类选择状态: {current_selection}")
+            # 恢复分类选择后，也要默认选择第一个子因子
+            self.on_category_select_default(current_selection)
         else:
-            # 如果之前没有选择或选择的分类已不存在，清空子因子列表和右侧配置区域
-            # 清空子因子选择区域
-            for widget in self.subfactor_scrollable_frame.winfo_children():
-                widget.destroy()
-            self.subfactor_radios = {}
-            self.subfactor_var.set("")
-            self.clear_config_areas()
+            # 如果之前没有选择或选择的分类已不存在，默认选择第一个分类
+            if factor_categories:
+                first_category = list(factor_categories.keys())[0]
+                self.select_category_by_name(first_category)
+                logger.info(f"默认选择第一个因子分类: {first_category}")
+                # 触发分类选择事件，加载子因子并默认选择第一个
+                self.on_category_select_default(first_category)
+            else:
+                # 如果没有分类，清空子因子列表和右侧配置区域
+                for widget in self.subfactor_scrollable_frame.winfo_children():
+                    widget.destroy()
+                self.subfactor_radios = {}
+                self.subfactor_var.set("")
+                self.clear_config_areas()
         
         # 重新绑定分类选择事件
         self.category_treeview.bind('<<TreeviewSelect>>', self.on_category_select)
@@ -882,6 +901,52 @@ class ConfigManagerUI:
         # 清空配置区域，等待选择子因子
         self.clear_config_areas()
         logger.info("等待选择子因子以完成步骤2")
+    
+    def on_category_select_default(self, category_name):
+        """处理默认分类选择事件，自动选择第一个子因子"""
+        logger.info(f"默认分类选择事件: {category_name}")
+        
+        # 刷新子因子列表
+        self.refresh_subfactors(category_name)
+        
+        # 默认选择第一个子因子
+        factor_categories = self.config_data.get("factor_categories", {})
+        sub_factors = factor_categories.get(category_name, [])
+        
+        logger.info(f"🔍 检查子因子列表: {len(sub_factors) if sub_factors else 0} 个子因子")
+        if sub_factors:
+            first_subfactor = sub_factors[0].get("name", "")
+            logger.info(f"🔍 第一个子因子: {first_subfactor}")
+            if first_subfactor:
+                logger.info(f"🔍 准备延迟设置默认选择: {first_subfactor}")
+                # 使用after方法延迟设置选中状态，确保单选按钮已创建完成
+                self.root.after(10, lambda: self._set_default_subfactor_selection(category_name, first_subfactor))
+            else:
+                logger.warning("🔍 第一个子因子名称为空")
+        else:
+            logger.warning("🔍 没有找到子因子，清空配置区域")
+            # 如果没有子因子，清空配置区域
+            self.clear_config_areas()
+    
+    def _set_default_subfactor_selection(self, category_name, first_subfactor):
+        """延迟设置默认子因子选择状态"""
+        logger.info(f"🔍 延迟设置默认子因子选择状态被调用: {first_subfactor}")
+        
+        # 检查子因子单选按钮是否已创建
+        if first_subfactor in self.subfactor_radios:
+            logger.info(f"🔍 找到子因子单选按钮: {first_subfactor}")
+        else:
+            logger.warning(f"🔍 未找到子因子单选按钮: {first_subfactor}, 可用按钮: {list(self.subfactor_radios.keys())}")
+        
+        # 设置第一个子因子为选中状态
+        old_value = self.subfactor_var.get()
+        self.subfactor_var.set(first_subfactor)
+        new_value = self.subfactor_var.get()
+        logger.info(f"🔍 子因子变量设置: {old_value} -> {new_value}")
+        
+        # 加载第一个子因子的配置
+        self.load_subfactor_config(category_name, first_subfactor)
+        logger.info(f"🔍 已加载子因子配置: {first_subfactor}")
     
     # 清除标志的方法已移除
     
@@ -2853,12 +2918,22 @@ class ConfigManagerUI:
                                 # 在配置管理器中选择对应的子因子
                                 if current_subfactor in self.subfactor_radios:
                                     # 设置单选按钮的值
+                                    old_value = self.subfactor_var.get()
                                     self.subfactor_var.set(current_subfactor)
+                                    new_value = self.subfactor_var.get()
+                                    logger.info(f"🔍 子因子变量设置: {old_value} -> {new_value}")
+                                    
+                                    # 强制更新单选按钮的显示状态
+                                    radio_button = self.subfactor_radios[current_subfactor]
+                                    radio_button.invoke()
+                                    logger.info(f"🔍 已强制更新单选按钮显示状态: {current_subfactor}")
                                     
                                     # 直接加载子因子配置，不触发事件
                                     self.load_subfactor_config(current_category, current_subfactor)
                                     
                                     logger.info(f"🔍 已同步子因子选择状态到配置管理器: {current_subfactor}")
+                                else:
+                                    logger.warning(f"🔍 未找到子因子单选按钮: {current_subfactor}, 可用按钮: {list(self.subfactor_radios.keys())}")
                             
                             # 清除同步标志
                             self._syncing_from_main_app = False
