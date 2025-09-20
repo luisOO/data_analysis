@@ -4,6 +4,7 @@
 
 import json
 import logging
+from decimal import Decimal
 from typing import List, Dict, Any, Optional, Union
 
 
@@ -152,8 +153,7 @@ class LightweightDataFrame:
         Returns:
             转换后的DataFrame（原地修改）
         """
-        from decimal import Decimal
-        import logging
+        # 使用已导入的模块
         
         if not self.data:
             return self

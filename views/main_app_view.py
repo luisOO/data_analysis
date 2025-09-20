@@ -300,7 +300,7 @@ class MainAppView(tk.Tk):
         """打开配置管理器"""
         try:
             if not hasattr(self, 'config_manager'):
-                self.config_manager = ConfigManagerUI()
+                self.config_manager = ConfigManagerUI(app_controller=self.controller)
             self.config_manager.open_config_window()
         except Exception as e:
             tk.messagebox.showerror("错误", f"打开配置管理器失败：{e}")

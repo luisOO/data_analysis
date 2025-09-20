@@ -59,14 +59,28 @@ class DataUtils:
         if df is None or df.empty:
             return df
             
-        # 优化数值类型
-        int_columns = df.select_dtypes(include=['int64']).columns
-        for col in int_columns:
-            df[col] = pd.to_numeric(df[col], downcast='integer')
-            
-        float_columns = df.select_dtypes(include=['float64']).columns
-        for col in float_columns:
-            df[col] = pd.to_numeric(df[col], downcast='float')
+        # 使用LightweightDataFrame的优化方法
+        try:
+            # 优化数值类型
+            int_columns = df.select_dtypes(include=['int64']).columns
+            for col in int_columns:
+                column_data = df[col]
+                optimized_data = pd.to_numeric(column_data, downcast='integer')
+                # 更新列数据
+                for i, value in enumerate(optimized_data):
+                    if i < len(df.data):
+                        df.data[i][col] = value
+                        
+            float_columns = df.select_dtypes(include=['float64']).columns
+            for col in float_columns:
+                column_data = df[col]
+                optimized_data = pd.to_numeric(column_data, downcast='float')
+                # 更新列数据
+                for i, value in enumerate(optimized_data):
+                    if i < len(df.data):
+                        df.data[i][col] = value
+        except Exception as e:
+            logging.warning(f"优化DataFrame内存时出错: {e}")
             
         # 简化的字符串处理，不进行复杂的category转换
         return df
