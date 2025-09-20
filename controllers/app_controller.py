@@ -90,7 +90,9 @@ class AppController:
         """程序启动时加载默认示例数据"""
         try:
             import os
-            sample_file = os.path.join(os.path.dirname(__file__), 'sample.json')
+            # 修复路径：sample.json位于项目根目录，不在controllers目录
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            sample_file = os.path.join(project_root, 'sample.json')
             if os.path.exists(sample_file):
                 self.data_manager.load_json_data(sample_file)
                 
@@ -205,7 +207,7 @@ class AppController:
             df = self.data_manager.get_data_for_level(nodes_at_level, columns)
             
             # 保存当前数据帧，用于搜索过滤
-            self.current_df = df
+            self.current_data = df
             
             # 使用通用方法转换显示列名
             display_columns = self._convert_to_display_columns(columns)
@@ -220,60 +222,142 @@ class AppController:
             
     def apply_search_filter(self, level, search_text):
         """应用搜索过滤"""
-        self.logger.info(f"应用搜索过滤: {search_text}")
-        
-        # 检查是否有当前数据帧
-        if not hasattr(self, 'current_df') or self.current_df is None or self.current_df.empty:
-            return
-            
-        # 更严格的重复检查 - 包括搜索文本、层级和数据版本
-        current_data_hash = hash(str(self.current_df.values.tobytes())) if hasattr(self.current_df, 'values') else 0
-        search_key = f"{level}_{search_text}_{current_data_hash}"
-        
-        if hasattr(self, '_last_search_key') and self._last_search_key == search_key:
-            return
-            
-        # 保存当前搜索键
-        self._last_search_key = search_key
-        self._last_search_text = search_text
-        self._last_search_level = level
-            
         try:
+            # 检查当前数据是否存在
+            if not hasattr(self, 'current_data') or self.current_data is None:
+                self.logger.error("当前数据为空，无法进行搜索过滤")
+                return
+                
+            self.logger.info(f"应用搜索过滤: {search_text}")
+            
+            # 检查是否有当前数据帧
+            if not hasattr(self, 'current_data') or self.current_data is None or len(self.current_data.data) == 0:
+                return
+                
+            # 更严格的重复检查 - 包括搜索文本、层级和数据版本
+            current_data_hash = hash(str(self.current_data.data)) if hasattr(self.current_data, 'data') else 0
+            search_key = f"{level}_{search_text}_{current_data_hash}"
+            
+            if hasattr(self, '_last_search_key') and self._last_search_key == search_key:
+                return
+                
+            # 保存当前搜索键
+            self._last_search_key = search_key
+            self._last_search_text = search_text
+            self._last_search_level = level
+                
             # 如果搜索文本为空，显示所有数据
             if not search_text:
                 # 使用通用方法转换显示列名
-                display_columns = self._convert_to_display_columns(self.current_df.columns)
+                display_columns = self._convert_to_display_columns(self.current_data.columns)
                     
                 # 更新表格显示
                 if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
                     # 获取当前层级的列配置
                     current_level = getattr(self.view.factor_view.detail_view, 'current_level', 'part')
                     columns = self.config_manager.get_data_table_columns(current_level, self.current_sub_factor)
-                    self.view.factor_view.detail_view.display_data_table(self.current_df, display_columns, columns)
+                    self.view.factor_view.detail_view.display_data_table(self.current_data, display_columns, columns)
                 return
             
             # 过滤数据
-            filtered_df = self.current_df.copy()
+            filtered_df = self.current_data.copy()
             mask = None
+            
+            # 添加调试日志
+            self.logger.info(f"开始搜索过滤，数据行数: {len(filtered_df)}, 列数: {len(filtered_df.columns)}")
             
             # 在所有列中搜索
             for col in filtered_df.columns:
-                col_mask = filtered_df[col].astype(str).str.lower().str.contains(search_text, na=False)
-                if mask is None:
-                    mask = col_mask
-                else:
-                    mask = mask | col_mask
+                try:
+                    # 检查列数据类型
+                    col_data = filtered_df[col]
                     
-            filtered_df = filtered_df[mask]
+                    # 检查是否为pandas Series
+                    if not hasattr(col_data, 'apply'):
+                        self.logger.info(f"列 '{col}' 不是pandas Series，转换为列表处理")
+                        # 如果不是列表，转换为列表
+                        if not isinstance(col_data, list):
+                            col_data = list(col_data)
+                        
+                    # 处理列数据可能是列表的情况
+                    try:
+                        # 检查是否包含列表类型数据
+                        has_list = any(isinstance(x, list) for x in col_data)
+                    except:
+                        # 如果检查失败，假设不包含列表
+                        has_list = False
+                        
+                    if has_list:
+                        # 对于列表类型的数据，将其转换为字符串再搜索
+                        self.logger.info(f"列 '{col}' 包含列表类型数据，使用自定义搜索方法")
+                        # 使用原生Python方法处理列表数据
+                        expanded_data = []
+                        for item in col_data:
+                            if isinstance(item, list):
+                                expanded_data.extend(item)
+                            else:
+                                expanded_data.append(item)
+                        col_data = expanded_data
+                        # 使用原生Python方法搜索
+                        col_mask = [search_text.lower() in str(x).lower() if x is not None else False 
+                                  for x in col_data]
+                    else:
+                        # 对于非列表类型的数据，使用常规方法
+                        # 使用原生Python方法搜索
+                        col_mask = [search_text.lower() in str(x).lower() if x is not None else False 
+                                  for x in col_data]
+                    
+                    if mask is None:
+                        mask = col_mask
+                    else:
+                        # 使用原生Python方法进行逻辑或操作
+                        mask = [m1 or m2 for m1, m2 in zip(mask, col_mask)]
+                except Exception as e:
+                    self.logger.warning(f"搜索列 '{col}' 时出错: {e}，跳过此列")
+            
+            # 应用过滤条件
+            if mask is not None:
+                try:
+                    # 使用原生Python方法过滤数据
+                    filtered_data = []
+                    for i, include in enumerate(mask):
+                        if include and i < len(self.current_data.data):
+                            filtered_data.append(self.current_data.data[i])
+                    
+                    # 创建新的LightweightDataFrame
+                    from utils.lightweight_data import LightweightDataFrame
+                    filtered_df = LightweightDataFrame(filtered_data)
+                    filtered_df.columns = self.current_data.columns
+                    
+                    if not filtered_data:
+                        self.logger.info("搜索过滤未找到匹配记录")
+                        
+                except Exception as e:
+                    self.logger.error(f"应用过滤条件时出错: {e}，使用原始数据")
+                    filtered_df = self.current_data.copy()
+            else:
+                self.logger.warning("搜索过滤未能创建有效的过滤条件，显示所有数据")
+                filtered_df = self.current_data.copy()
             
             # 使用通用方法转换显示列名
             display_columns = self._convert_to_display_columns(filtered_df.columns)
+            
+            # 添加详细的调试日志
+            self.logger.info(f"过滤后数据: 行数={len(filtered_df)}, 列数={len(filtered_df.columns)}")
+            self.logger.info(f"过滤后的列名: {list(filtered_df.columns)}")
+            self.logger.info(f"显示列名映射: {display_columns}")
                 
             # 更新表格显示
             if hasattr(self.view.factor_view, 'detail_view') and self.view.factor_view.detail_view:
                 # 获取当前层级的列配置
                 current_level = getattr(self.view.factor_view.detail_view, 'current_level', 'part')
                 columns = self.config_manager.get_data_table_columns(current_level, self.current_sub_factor)
+                
+                # 添加列配置的调试日志
+                self.logger.info(f"当前层级: {current_level}, 子因子: {self.current_sub_factor}")
+                self.logger.info(f"列配置: {columns}")
+                
+                # 确保传递正确的数据给表格
                 self.view.factor_view.detail_view.display_data_table(filtered_df, display_columns, columns)
                 self.logger.info(f"搜索过滤完成，找到 {len(filtered_df)} 条匹配记录")
                 
@@ -283,13 +367,22 @@ class AppController:
     def reload_config(self):
         """重新加载配置文件"""
         try:
-            # 重新创建配置管理器
+            # 保存旧配置和配置文件路径
             old_config = self.config_manager.config.copy() if hasattr(self.config_manager, 'config') else {}
-            self.config_manager = ConfigManager()
+            config_path = self.config_manager.config_path
+            
+            # 重新加载配置文件
+            if config_path:
+                self.config_manager.reload_config()
+                # 同时更新数据管理器的配置管理器引用
+                self.data_manager.config_manager = self.config_manager
+            else:
+                self.logger.warning("配置文件路径未设置，无法重新加载配置")
+                return False
             
             # 记录配置变化
             new_config = self.config_manager.config
-            self.logger.info("配置文件已重新加载")
+            self.logger.info(f"配置文件已重新加载: {config_path}")
             
             # 检查是否有重要配置变化
             config_changed = False
