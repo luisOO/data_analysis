@@ -108,33 +108,89 @@ class ConfigManagerUI:
             "display_names": {}
         }
     
-    def verify_password(self):
-        """验证密码"""
-        if self.password_verified:
-            return True
+    def create_password_verification_ui(self):
+        """创建密码验证界面"""
+        # 密码验证容器
+        self.password_frame = ttk.Frame(self.display_names_tab_frame)
+        self.password_frame.pack(expand=True, fill=tk.BOTH)
         
-        password = simpledialog.askstring("密码验证", "请输入密码访问字段配置页面:", show='*')
+        # 居中容器
+        center_frame = ttk.Frame(self.password_frame)
+        center_frame.pack(expand=True)
+        
+        # 标题
+        title_label = ttk.Label(center_frame, text="字段配置页面访问验证", 
+                               font=('Arial', 16, 'bold'))
+        title_label.pack(pady=(50, 30))
+        
+        # 密码输入框架
+        input_frame = ttk.Frame(center_frame)
+        input_frame.pack(pady=20)
+        
+        ttk.Label(input_frame, text="请输入密码:", font=('Arial', 12)).pack(pady=(0, 10))
+        
+        self.password_var = tk.StringVar()
+        self.password_entry = ttk.Entry(input_frame, textvariable=self.password_var, 
+                                       show='*', font=('Arial', 12), width=20)
+        self.password_entry.pack(pady=(0, 20))
+        
+        # 按钮框架
+        button_frame = ttk.Frame(center_frame)
+        button_frame.pack(pady=10)
+        
+        verify_button = ttk.Button(button_frame, text="验证", 
+                                  command=self.verify_password_from_ui)
+        verify_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 错误提示标签
+        self.error_label = ttk.Label(center_frame, text="", 
+                                    foreground='red', font=('Arial', 10))
+        self.error_label.pack(pady=(10, 0))
+        
+        # 绑定回车键
+        self.password_entry.bind('<Return>', lambda e: self.verify_password_from_ui())
+        
+        # 自动聚焦到密码输入框
+        self.password_entry.focus()
+    
+    def verify_password_from_ui(self):
+        """从界面验证密码"""
+        # 直接从Entry组件获取值，而不是从StringVar获取
+        password = self.password_entry.get()
+        password_var_value = self.password_var.get()
+        logger.info(f"Entry获取的密码: '{password}', StringVar获取的密码: '{password_var_value}', Entry长度: {len(password)}")
+        
         if password == "12345678":  # 可以从配置文件读取或使用更安全的方式
             self.password_verified = True
-            return True
+            # 隐藏密码验证界面，显示字段配置内容
+            self.password_frame.destroy()
+            self.ensure_display_names_content()
+            logger.info("密码验证成功，进入字段配置页面")
         else:
-            messagebox.showerror("错误", "密码错误！", parent=self.root)
-            return False
+            self.error_label.config(text="密码错误，请重新输入")
+            self.password_entry.delete(0, tk.END)  # 直接清空Entry组件
+            self.password_var.set("")  # 同时清空StringVar
+            self.password_entry.focus()
+            logger.warning(f"密码验证失败，Entry输入的密码: '{password}', StringVar值: '{password_var_value}'")
+    
+    def verify_password(self):
+        """验证密码（保留兼容性）"""
+        if self.password_verified:
+            return True
+        # 如果还没有验证过密码，返回False让界面显示密码输入框
+        return False
     
     def on_tab_changed(self, event):
         """标签切换事件处理"""
         selected_tab = self.notebook.select()
         tab_text = self.notebook.tab(selected_tab, "text")
         
-        # 如果切换到字段配置页面，进行密码验证
+        # 如果切换到字段配置页面，检查密码验证状态
         if tab_text == "字段配置":
-            if not self.verify_password():
-                # 密码验证失败，切换回第一个标签
-                self.notebook.select(0)
-                return
-            
-            # 密码验证成功，确保字段配置页面内容已加载
-            self.ensure_display_names_content()
+            if self.password_verified:
+                # 密码已验证，确保字段配置页面内容已加载
+                self.ensure_display_names_content()
+            # 如果密码未验证，界面会显示密码输入框，无需额外处理
     
     def open_config_window(self):
         """打开配置管理窗口"""
@@ -534,11 +590,8 @@ class ConfigManagerUI:
         self.display_names_tab_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.display_names_tab_frame, text="字段配置")
         
-        # 初始显示提示信息，内容将在首次访问时加载
-        self.display_names_placeholder = ttk.Label(self.display_names_tab_frame, 
-                                                  text="请点击此标签页进行密码验证后访问字段配置", 
-                                                  font=('Arial', 12), foreground='gray')
-        self.display_names_placeholder.pack(expand=True)
+        # 创建密码验证界面
+        self.create_password_verification_ui()
         
         # 标记内容是否已加载
         self.display_names_content_loaded = False
@@ -547,9 +600,6 @@ class ConfigManagerUI:
         """确保字段配置页面内容已加载"""
         if self.display_names_content_loaded:
             return
-        
-        # 移除占位符
-        self.display_names_placeholder.destroy()
         
         # 说明标签
         info_label = ttk.Label(self.display_names_tab_frame, text="配置字段的显示名称和作用范围", font=('Arial', 10, 'bold'))
