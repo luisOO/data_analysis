@@ -1458,7 +1458,9 @@ class ConfigManagerUI:
                 # 重命名分类
                 factor_categories[new_name] = factor_categories.pop(old_name)
                 self.refresh_factor_categories()
-                logger.info(f"编辑因子分类: {old_name} -> {new_name}")
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                logger.info(f"编辑因子分类: {old_name} -> {new_name}，已保存到配置文件")
             else:
                 messagebox.showwarning("警告", "分类名称已存在！")
     
@@ -1476,7 +1478,9 @@ class ConfigManagerUI:
             if category_name in factor_categories:
                 del factor_categories[category_name]
                 self.refresh_factor_categories()
-                logger.info(f"删除因子分类: {category_name}")
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                logger.info(f"删除因子分类: {category_name}，已保存到配置文件")
     
     def add_sub_factor_new(self):
         """添加子因子（新方法）"""
@@ -1501,7 +1505,9 @@ class ConfigManagerUI:
                 }
                 self.config_data.setdefault("factor_categories", {}).setdefault(category_name, []).append(new_factor)
                 self.refresh_subfactors(category_name)
-                logger.info(f"添加子因子: {category_name} -> {factor_name}")
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                logger.info(f"添加子因子: {category_name} -> {factor_name}，已保存到配置文件")
             else:
                 messagebox.showwarning("警告", "子因子已存在！")
     
@@ -1529,7 +1535,9 @@ class ConfigManagerUI:
                         factor["name"] = new_name
                         break
                 self.refresh_subfactors(category_name)
-                logger.info(f"编辑子因子名称: {old_name} -> {new_name}")
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                logger.info(f"编辑子因子名称: {old_name} -> {new_name}，已保存到配置文件")
             else:
                 messagebox.showwarning("警告", "子因子名称已存在！")
     
@@ -1549,7 +1557,9 @@ class ConfigManagerUI:
             self.config_data["factor_categories"][category_name] = [f for f in factors if f.get("name") != subfactor_name]
             self.refresh_subfactors(category_name)
             self.clear_config_areas()
-            logger.info(f"删除子因子: {category_name} -> {subfactor_name}")
+            # 保存配置到文件
+            self.save_config(show_success_message=False)
+            logger.info(f"删除子因子: {category_name} -> {subfactor_name}，已保存到配置文件")
     
     # ==================== 右侧配置区域数据刷新方法 ====================
     
@@ -2057,7 +2067,9 @@ class ConfigManagerUI:
             if category_name not in self.config_data.get("factor_categories", {}):
                 self.config_data.setdefault("factor_categories", {})[category_name] = []
                 self.refresh_factor_tree()
-                logger.info(f"添加因子分类: {category_name}")
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                logger.info(f"添加因子分类: {category_name}，已保存到配置文件")
             else:
                 messagebox.showwarning("警告", "分类已存在！")
     
@@ -2091,7 +2103,9 @@ class ConfigManagerUI:
                 }
                 self.config_data.setdefault("factor_categories", {}).setdefault(category_name, []).append(new_factor)
                 self.refresh_factor_tree()
-                logger.info(f"添加子因子: {category_name} -> {factor_name}")
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                logger.info(f"添加子因子: {category_name} -> {factor_name}，已保存到配置文件")
             else:
                 messagebox.showwarning("警告", "子因子已存在！")
     
@@ -2116,7 +2130,9 @@ class ConfigManagerUI:
                 if new_name not in factor_categories:
                     factor_categories[new_name] = factor_categories.pop(item_text)
                     self.refresh_factor_tree()
-                    logger.info(f"编辑分类名称: {item_text} -> {new_name}")
+                    # 保存配置到文件
+                    self.save_config(show_success_message=False)
+                    logger.info(f"编辑分类名称: {item_text} -> {new_name}，已保存到配置文件")
                 else:
                     messagebox.showwarning("警告", "分类名称已存在！")
             
@@ -2134,7 +2150,9 @@ class ConfigManagerUI:
                             factor["name"] = new_name
                             break
                     self.refresh_factor_tree()
-                    logger.info(f"编辑子因子名称: {item_text} -> {new_name}")
+                    # 保存配置到文件
+                    self.save_config(show_success_message=False)
+                    logger.info(f"编辑子因子名称: {item_text} -> {new_name}，已保存到配置文件")
                 else:
                     messagebox.showwarning("警告", "子因子名称已存在！")
     
@@ -2153,7 +2171,7 @@ class ConfigManagerUI:
             if item_values[0] == "分类":
                 # 删除分类
                 self.config_data.get("factor_categories", {}).pop(item_text, None)
-                logger.info(f"删除因子分类: {item_text}")
+                logger.info(f"删除因子分类: {item_text}，已保存到配置文件")
             
             elif item_values[0] == "子因子":
                 # 删除子因子
@@ -2164,9 +2182,11 @@ class ConfigManagerUI:
                 self.config_data["factor_categories"][category_name] = [
                     f for f in factors if f.get("name") != item_text
                 ]
-                logger.info(f"删除子因子: {category_name} -> {item_text}")
+                logger.info(f"删除子因子: {category_name} -> {item_text}，已保存到配置文件")
             
             self.refresh_factor_tree()
+            # 保存配置到文件
+            self.save_config(show_success_message=False)
     
     def config_basic_info(self):
         """配置子因子基本信息"""
