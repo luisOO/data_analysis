@@ -13,7 +13,8 @@
     "calModel",
     "saleScenceName",
     "calcLevel",
-    "productName"
+    "productName",
+    "arCapitalTakesUpCostSoftware"
   ],
   "data_hierarchy_names": {
     "total": "整单层",
@@ -33,10 +34,7 @@
       {
         "name": "全额预付优惠率",
         "basic_info": [
-          "saleScenceName",
-          "fullPrepayFlag",
-          "signSubject",
-          "countryCode"
+          "partCode"
         ],
         "table_info": {
           "model": [

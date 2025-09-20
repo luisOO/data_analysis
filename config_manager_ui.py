@@ -40,6 +40,8 @@ class ConfigManagerUI:
         
         # 字段配置页面内容加载状态
         self.display_names_content_loaded = False
+        
+        # 移除了循环依赖防护标志，因为因子分类和子因子是简单的父子级关系
     
     def load_config(self):
         """加载配置文件"""
@@ -166,13 +168,24 @@ class ConfigManagerUI:
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
         
         # 创建各个配置页面
-        self.create_document_info_tab()
-        self.create_hierarchy_tab()
-        self.create_factor_categories_tab()
-        self.create_display_names_tab()
+        try:
+            self.create_document_info_tab()
+            self.create_hierarchy_tab()
+            self.create_factor_categories_tab()
+            self.create_display_names_tab()
+        except Exception as e:
+            logger.error(f"创建配置页面时出错: {e}")
+            # 确保基本的UI组件存在
+            if not hasattr(self, 'table_info_content_frame'):
+                self.table_info_content_frame = ttk.Frame(self.notebook)
+                logger.info("在异常处理中创建了 table_info_content_frame")
+            raise
         
         # 创建底部按钮
         self.create_bottom_buttons(main_frame)
+        
+        # 同步主应用的当前选择状态
+        self.sync_main_app_selection_state()
         
         logger.info("配置管理窗口已打开")
     
@@ -270,6 +283,7 @@ class ConfigManagerUI:
         # 绑定双击事件
         self.available_fields_listbox.bind('<Double-1>', lambda e: self.add_selected_field())
         self.selected_fields_listbox.bind('<Double-1>', lambda e: self.remove_selected_field())
+        logger.info("已绑定字段列表双击事件")
         
         # 加载数据
         self.refresh_document_fields()
@@ -328,50 +342,153 @@ class ConfigManagerUI:
     
     def create_factor_categories_tab(self):
         """创建因子分类配置页面"""
-        tab_frame = ttk.Frame(self.notebook)
-        self.notebook.add(tab_frame, text="因子分类配置")
+        logger.info("开始创建因子分类配置页面")
+        try:
+            tab_frame = ttk.Frame(self.notebook)
+            self.notebook.add(tab_frame, text="因子分类配置")
         
-        # 说明标签
-        info_label = ttk.Label(tab_frame, text="配置因子分类及其子因子信息", font=('Arial', 10, 'bold'))
-        info_label.pack(pady=(10, 5))
+            # 说明标签
+            info_label = ttk.Label(tab_frame, text="配置因子分类及其子因子信息", font=('Arial', 10, 'bold'))
+            info_label.pack(pady=(10, 5))
         
-        # 主容器
-        main_container = ttk.Frame(tab_frame)
-        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+            # 主容器 - 左右结构
+            main_container = ttk.Frame(tab_frame)
+            main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        # 左侧：因子树
-        left_frame = ttk.LabelFrame(main_container, text="因子分类树")
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+            # 左侧容器 - 上下结构
+            left_container = ttk.Frame(main_container)
+            left_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        # 创建树形控件
-        tree_frame = ttk.Frame(left_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            # 左侧上部分：因子分类
+            category_frame = ttk.LabelFrame(left_container, text="因子分类")
+            category_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+            
+            # 因子分类列表框架
+            category_list_frame = ttk.Frame(category_frame)
+            category_list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 因子分类树形控件
+            self.category_treeview = ttk.Treeview(category_list_frame, selectmode='browse', height=8)
+            self.category_treeview.heading('#0', text='因子分类', anchor='w')
+            self.category_treeview.column('#0', width=200, minwidth=100)
+            self.category_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            category_scrollbar = ttk.Scrollbar(category_list_frame, orient=tk.VERTICAL, command=self.category_treeview.yview)
+            self.category_treeview.configure(yscrollcommand=category_scrollbar.set)
+            category_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            # 因子分类操作按钮
+            category_btn_frame = ttk.Frame(category_frame)
+            category_btn_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+            
+            ttk.Button(category_btn_frame, text="添加分类", command=self.add_factor_category).pack(side=tk.LEFT, padx=(0, 2))
+            ttk.Button(category_btn_frame, text="编辑分类", command=self.edit_factor_category).pack(side=tk.LEFT, padx=2)
+            ttk.Button(category_btn_frame, text="删除分类", command=self.delete_factor_category).pack(side=tk.LEFT, padx=2)
+            
+            # 左侧下部分：子因子
+            subfactor_frame = ttk.LabelFrame(left_container, text="子因子")
+            subfactor_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # 子因子选择区域
+            subfactor_container = ttk.Frame(subfactor_frame)
+            subfactor_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 创建滚动区域用于子因子按钮
+            self.subfactor_canvas = tk.Canvas(subfactor_container, highlightthickness=0, bg="#f8f9fa")
+            subfactor_scrollbar = ttk.Scrollbar(subfactor_container, orient="vertical", command=self.subfactor_canvas.yview)
+            self.subfactor_scrollable_frame = ttk.Frame(self.subfactor_canvas)
+            
+            # 设置滚动区域
+            self.subfactor_scrollable_frame.bind(
+                "<Configure>",
+                lambda e: self.subfactor_canvas.configure(scrollregion=self.subfactor_canvas.bbox("all"))
+            )
+            
+            # 在画布上创建窗口
+            self.subfactor_canvas.create_window((0, 0), window=self.subfactor_scrollable_frame, anchor="nw")
+            self.subfactor_canvas.configure(yscrollcommand=subfactor_scrollbar.set)
+            
+            # 布局滚动区域组件
+            self.subfactor_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            subfactor_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            # 子因子选择变量
+            self.subfactor_var = tk.StringVar()
+            self.subfactor_radios = {}
+            
+            # 子因子操作按钮
+            subfactor_btn_frame = ttk.Frame(subfactor_frame)
+            subfactor_btn_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+            
+            # 操作按钮
+            operation_frame = ttk.Frame(subfactor_btn_frame)
+            operation_frame.pack(fill=tk.X)
+            
+            ttk.Button(operation_frame, text="添加子因子", command=self.add_sub_factor_new).pack(side=tk.LEFT, padx=(0, 2))
+            ttk.Button(operation_frame, text="编辑子因子", command=self.edit_sub_factor_new).pack(side=tk.LEFT, padx=2)
+            ttk.Button(operation_frame, text="删除子因子", command=self.delete_sub_factor_new).pack(side=tk.LEFT, padx=2)
+            
+            # 右侧容器 - 上下结构
+            right_container = ttk.Frame(main_container)
+            right_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+            
+            # 右侧上部分：子因子基本信息配置
+            basic_info_frame = ttk.LabelFrame(right_container, text="子因子基本信息配置")
+            basic_info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+            
+            # 基本信息配置内容区域
+            self.basic_info_content_frame = ttk.Frame(basic_info_frame)
+            self.basic_info_content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 显示默认提示信息
+            self.clear_config_areas()
+            
+            # 中间：数据层次选择区域
+            hierarchy_selection_frame = ttk.LabelFrame(right_container, text="数据层次选择")
+            hierarchy_selection_frame.pack(fill=tk.X, pady=5)
+            
+            self.table_hierarchy_var = tk.StringVar(value="part")
+            hierarchy_buttons_frame = ttk.Frame(hierarchy_selection_frame)
+            hierarchy_buttons_frame.pack(fill=tk.X, padx=10, pady=5)
+            
+            hierarchies = [("total", "整单层"), ("boq", "BOQ层"), ("model", "模型层"), ("part", "部件层")]
+            for value, text in hierarchies:
+                ttk.Radiobutton(hierarchy_buttons_frame, text=text, variable=self.table_hierarchy_var,
+                               value=value, command=self.on_hierarchy_change).pack(side=tk.LEFT, padx=10)
+            
+            # 右侧下部分：数据表格字段配置
+            table_info_frame = ttk.LabelFrame(right_container, text="数据表格字段配置")
+            table_info_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # 表格字段配置内容区域
+            self.table_info_content_frame = ttk.Frame(table_info_frame)
+            self.table_info_content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            logger.info("table_info_content_frame 创建成功")
+            
+            # 绑定选择事件
+            self.category_treeview.bind('<<TreeviewSelect>>', self.on_category_select)
+            # Radiobutton组件不需要绑定ListboxSelect事件
+            
+            # 初始化数据
+            self.refresh_factor_categories()
+            
+            # 保留原有的树形控件用于兼容性（隐藏）
+            self.factor_tree = None
+            
+            # 标记因子分类页面已创建完成
+            self.factor_categories_tab_created = True
+            
+            logger.info("因子分类配置页面创建完成")
         
-        self.factor_tree = ttk.Treeview(tree_frame, columns=("type", "info"), show="tree headings")
-        self.factor_tree.heading("#0", text="名称")
-        self.factor_tree.heading("type", text="类型")
-        self.factor_tree.heading("info", text="配置信息")
-        
-        tree_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.factor_tree.yview)
-        self.factor_tree.configure(yscrollcommand=tree_scrollbar.set)
-        
-        self.factor_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # 右侧：操作按钮
-        right_frame = ttk.Frame(main_container)
-        right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
-        
-        ttk.Button(right_frame, text="添加分类", command=self.add_factor_category).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="添加子因子", command=self.add_sub_factor).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="编辑选中项", command=self.edit_factor_item).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="删除选中项", command=self.delete_factor_item).pack(pady=2, fill=tk.X)
-        ttk.Separator(right_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
-        ttk.Button(right_frame, text="配置基本信息", command=self.config_basic_info).pack(pady=2, fill=tk.X)
-        ttk.Button(right_frame, text="配置表格信息", command=self.config_table_info).pack(pady=2, fill=tk.X)
-        
-        # 加载因子数据
-        self.refresh_factor_tree()
+        except Exception as e:
+            logger.error(f"创建因子分类配置页面时出错: {e}")
+            # 确保即使出错也要创建基本的 table_info_content_frame
+            if not hasattr(self, 'table_info_content_frame'):
+                self.table_info_content_frame = ttk.Frame(self.notebook)
+                logger.info("创建了备用的 table_info_content_frame")
+            raise
+    
+
     
     def create_display_names_tab(self):
         """创建字段配置页面"""
@@ -510,67 +627,106 @@ class ConfigManagerUI:
     
     def add_selected_field(self):
         """将字段从可选择列表添加到已选择列表"""
-        selection = self.available_fields_listbox.curselection()
-        if not selection:
-            messagebox.showwarning("警告", "请先选择一个字段！")
-            return
-        
-        # 获取选中的显示名称
-        display_name = self.available_fields_listbox.get(selection[0])
-        
-        # 根据显示名称找到对应的字段名
-        display_names = self.config_data.get("display_names", {})
-        field_name = None
-        for fname, fconfig in display_names.items():
-            if isinstance(fconfig, dict):
-                if fconfig.get('display_name', fname) == display_name:
-                    field_name = fname
-                    break
+        try:
+            logger.debug("执行add_selected_field方法")
+            selection = self.available_fields_listbox.curselection()
+            if not selection:
+                logger.warning("未选择字段，无法添加")
+                messagebox.showwarning("警告", "请先选择一个字段！")
+                return
+            
+            # 获取选中的显示名称
+            display_name = self.available_fields_listbox.get(selection[0])
+            logger.info(f"选中字段: {display_name}")
+            
+            # 根据显示名称找到对应的字段名
+            display_names = self.config_data.get("display_names", {})
+            field_name = None
+            for fname, fconfig in display_names.items():
+                if isinstance(fconfig, dict):
+                    if fconfig.get('display_name', fname) == display_name:
+                        field_name = fname
+                        break
+                else:
+                    if fconfig == display_name:
+                        field_name = fname
+                        break
+            
+            # 如果在display_names中找不到，可能是直接使用字段名作为显示名
+            if not field_name:
+                # 检查是否有完全匹配的字段名
+                all_fields = self.config_data.get("all_fields", [])
+                if display_name in all_fields:
+                    field_name = display_name
+            
+            if field_name:
+                # 添加到已选择字段配置
+                self.config_data.setdefault("document_info_fields", []).append(field_name)
+                
+                # 从可选列表中移除该项
+                self.available_fields_listbox.delete(selection[0])
+                
+                # 添加到已选择列表
+                self.selected_fields_listbox.insert(tk.END, display_name)
+                
+                # 选中新添加的字段
+                self.selected_fields_listbox.selection_set(tk.END)
+                
+                # 确保更新UI
+                self.root.update_idletasks()
+                
+                logger.info(f"添加字段成功: {field_name} ({display_name})")
             else:
-                if fconfig == display_name:
-                    field_name = fname
-                    break
-        
-        if field_name:
-            # 添加到已选择字段配置
-            self.config_data.setdefault("document_info_fields", []).append(field_name)
-            
-            # 刷新界面
-            self.refresh_document_fields()
-            
-            # 选中新添加的字段
-            self.selected_fields_listbox.selection_set(tk.END)
-            
-            logger.info(f"添加字段: {field_name} ({display_name})")
+                logger.error(f"无法找到字段名称: {display_name}")
+                messagebox.showerror("错误", f"无法找到字段名称: {display_name}")
+        except Exception as e:
+            logger.error(f"添加字段时发生错误: {str(e)}")
+            messagebox.showerror("错误", f"添加字段时发生错误: {str(e)}")
     
     def remove_selected_field(self):
         """将字段从已选择列表移除到可选择列表"""
-        selection = self.selected_fields_listbox.curselection()
-        if not selection:
-            messagebox.showwarning("警告", "请先选择一个字段！")
-            return
-        
-        index = selection[0]
-        fields = self.config_data.get("document_info_fields", [])
-        
-        if index < len(fields):
-            field_name = fields[index]
+        try:
+            logger.debug("执行remove_selected_field方法")
+            selection = self.selected_fields_listbox.curselection()
+            if not selection:
+                logger.warning("未选择字段，无法移除")
+                messagebox.showwarning("警告", "请先选择一个字段！")
+                return
             
-            # 获取显示名称用于日志
-            display_names = self.config_data.get("display_names", {})
-            field_config = display_names.get(field_name, field_name)
-            if isinstance(field_config, dict):
-                display_name = field_config.get('display_name', field_name)
+            index = selection[0]
+            fields = self.config_data.get("document_info_fields", [])
+            
+            if index < len(fields):
+                field_name = fields[index]
+                
+                # 获取显示名称用于日志
+                display_names = self.config_data.get("display_names", {})
+                field_config = display_names.get(field_name, field_name)
+                if isinstance(field_config, dict):
+                    display_name = field_config.get('display_name', field_name)
+                else:
+                    display_name = field_config
+                
+                # 从配置中移除
+                fields.pop(index)
+                
+                # 从已选择列表中移除
+                display_name = self.selected_fields_listbox.get(index)
+                self.selected_fields_listbox.delete(index)
+                
+                # 添加到可选择列表
+                self.available_fields_listbox.insert(tk.END, display_name)
+                
+                # 确保更新UI
+                self.root.update_idletasks()
+                
+                logger.info(f"移除字段成功: {field_name} ({display_name})")
             else:
-                display_name = field_config
-            
-            # 从配置中移除
-            fields.pop(index)
-            
-            # 刷新界面
-            self.refresh_document_fields()
-            
-            logger.info(f"移除字段: {field_name} ({display_name})")
+                logger.error(f"索引超出范围: {index} >= {len(fields)}")
+                messagebox.showerror("错误", "无法移除字段，索引超出范围")
+        except Exception as e:
+            logger.error(f"移除字段时发生错误: {str(e)}")
+            messagebox.showerror("错误", f"移除字段时发生错误: {str(e)}")
     
     def move_selected_field(self, direction):
         """移动已选择字段的位置"""
@@ -615,27 +771,1052 @@ class ConfigManagerUI:
     
     # ==================== 因子分类操作 ====================
     
-    def refresh_factor_tree(self):
-        """刷新因子分类树"""
-        # 清空树
-        for item in self.factor_tree.get_children():
-            self.factor_tree.delete(item)
+    def refresh_factor_categories(self):
+        """刷新因子分类列表"""
+        # 保存当前选中的分类
+        current_selection = None
+        selection = self.category_treeview.selection()
+        if selection:
+            current_selection = self.category_treeview.item(selection[0], 'text')
+            logger.debug(f"保存当前选中的分类: {current_selection}")
+        
+        # 临时解绑事件，防止清空列表时触发选择事件
+        self.category_treeview.unbind('<<TreeviewSelect>>')
+        
+        # 清空分类树
+        for item in self.category_treeview.get_children():
+            self.category_treeview.delete(item)
         
         # 加载因子分类
         factor_categories = self.config_data.get("factor_categories", {})
-        for category_name, sub_factors in factor_categories.items():
-            category_id = self.factor_tree.insert("", tk.END, text=category_name, 
-                                                values=("分类", f"{len(sub_factors)}个子因子"))
-            
-            # 加载子因子
-            for sub_factor in sub_factors:
-                factor_name = sub_factor.get("name", "未命名")
-                basic_info_count = len(sub_factor.get("basic_info", []))
-                table_info_count = sum(len(v) for v in sub_factor.get("table_info", {}).values())
-                
-                self.factor_tree.insert(category_id, tk.END, text=factor_name,
-                                       values=("子因子", f"基本信息:{basic_info_count}, 表格信息:{table_info_count}"))
+        for category_name in factor_categories.keys():
+            self.category_treeview.insert('', 'end', text=category_name, open=True)
+        
+        # 恢复之前的选择状态
+        if current_selection and current_selection in factor_categories:
+            self.select_category_by_name(current_selection)
+            logger.debug(f"恢复分类选择状态: {current_selection}")
+        else:
+            # 如果之前没有选择或选择的分类已不存在，清空子因子列表和右侧配置区域
+            # 清空子因子选择区域
+            for widget in self.subfactor_scrollable_frame.winfo_children():
+                widget.destroy()
+            self.subfactor_radios = {}
+            self.subfactor_var.set("")
+            self.clear_config_areas()
+        
+        # 重新绑定分类选择事件
+        self.category_treeview.bind('<<TreeviewSelect>>', self.on_category_select)
     
+    def refresh_factor_tree(self):
+        """刷新因子分类树（兼容性方法）"""
+        if self.factor_tree is not None:
+            # 清空树
+            for item in self.factor_tree.get_children():
+                self.factor_tree.delete(item)
+            
+            # 加载因子分类
+            factor_categories = self.config_data.get("factor_categories", {})
+            for category_name, sub_factors in factor_categories.items():
+                category_id = self.factor_tree.insert("", tk.END, text=category_name, 
+                                                    values=("分类", f"{len(sub_factors)}个子因子"))
+                
+                # 加载子因子
+                for sub_factor in sub_factors:
+                    factor_name = sub_factor.get("name", "未命名")
+                    basic_info_count = len(sub_factor.get("basic_info", []))
+                    table_info_count = sum(len(v) for v in sub_factor.get("table_info", {}).values())
+                    
+                    self.factor_tree.insert(category_id, tk.END, text=factor_name,
+                                            values=("子因子", f"基本信息:{basic_info_count}, 表格信息:{table_info_count}"))
+        
+        # 同时刷新新的列表界面
+        self.refresh_factor_categories()
+    
+    def clear_config_areas(self):
+        """清空配置区域"""
+        # 清空基本信息配置区域
+        if hasattr(self, 'basic_info_content_frame') and self.basic_info_content_frame:
+            for widget in self.basic_info_content_frame.winfo_children():
+                widget.destroy()
+            # 显示提示信息
+            ttk.Label(self.basic_info_content_frame, text="请选择子因子以配置基本信息", 
+                     font=('微软雅黑', 10), foreground='gray').pack(expand=True)
+        
+        # 清空表格字段配置区域
+        if hasattr(self, 'table_info_content_frame') and self.table_info_content_frame:
+            for widget in self.table_info_content_frame.winfo_children():
+                widget.destroy()
+            # 显示提示信息
+            ttk.Label(self.table_info_content_frame, text="请选择子因子以配置表格字段", 
+                     font=('微软雅黑', 10), foreground='gray').pack(expand=True)
+        
+        logger.debug("配置区域已清空")
+    
+    def on_category_select(self, event):
+        """处理因子分类选择事件 - 严格按照父级->子级选择流程"""
+        # 检查是否正在从主应用同步，如果是则跳过处理
+        if getattr(self, '_syncing_from_main_app', False):
+            logger.info("🔍 正在从主应用同步，跳过on_category_select处理")
+            return
+            
+        import traceback
+        logger.info(f"🔍 on_category_select被调用，调用栈: {traceback.format_stack()[-3:-1]}")
+        
+        selection = self.category_treeview.selection()
+        logger.info(f"🔍 当前分类选择状态: {selection}")
+        
+        if not selection:
+            logger.info("因子分类选择已清空")
+            self.clear_config_areas()
+            return
+        
+        # 步骤1：保存因子分类的值
+        category_name = self.category_treeview.item(selection[0], 'text')
+        logger.info(f"步骤1完成：因子分类已选择并保存 -> {category_name}")
+        
+        # 刷新子因子列表
+        logger.info(f"刷新分类 '{category_name}' 下的子因子列表")
+        self.refresh_subfactors(category_name)
+        
+        # 清空配置区域，等待选择子因子
+        self.clear_config_areas()
+        logger.info("等待选择子因子以完成步骤2")
+    
+    # 清除标志的方法已移除
+    
+    def safe_subfactor_selection_set(self, factor_name):
+        """安全的子因子选择方法，保护分类选择状态"""
+        # 保存当前分类选择状态
+        current_category_selection = self.category_treeview.selection()
+        if current_category_selection:
+            self._temp_saved_category_selection = current_category_selection
+            logger.info(f"🔍 预保存分类选择状态: {current_category_selection}")
+        
+        # 设置子因子选择变量
+        if factor_name in self.subfactor_radios:
+            self.subfactor_var.set(factor_name)
+            logger.info(f"已选择子因子: {factor_name}")
+        
+        # 如果分类选择被清空，立即恢复
+        if current_category_selection and not self.category_treeview.selection():
+            logger.info(f"🔍 检测到分类选择被清空，立即恢复: {current_category_selection}")
+            self.category_treeview.selection_set(current_category_selection[0])
+        
+        # 手动触发子因子选择事件，此时分类选择状态已经恢复
+        self.on_subfactor_select(None)
+    
+    def on_subfactor_select_with_name(self, subfactor_name):
+        """处理子因子选择事件 - 使用传入的子因子名称"""
+        logger.info(f"子因子选择事件被触发，传入的子因子名称: {subfactor_name}")
+        
+        # 确保subfactor_var与传入的名称一致
+        current_var_value = self.subfactor_var.get()
+        logger.info(f"当前subfactor_var的值: {current_var_value}")
+        
+        if current_var_value != subfactor_name:
+            logger.warning(f"subfactor_var值({current_var_value})与传入名称({subfactor_name})不一致，强制更新")
+            self.subfactor_var.set(subfactor_name)
+        
+        # 调用原有的选择处理逻辑
+        self.on_subfactor_select(None)
+
+    def on_subfactor_select(self, event):
+        """处理子因子选择事件 - 严格按照父级->子级选择流程"""
+        logger.info("子因子选择事件被触发")
+        logger.info(f"事件类型: {'用户点击' if event else '程序触发'}")
+        
+        # 保护分类选择状态：使用预保存的分类选择状态
+        saved_category_selection = getattr(self, '_temp_saved_category_selection', self.category_treeview.selection())
+        logger.info(f"🔍 使用的分类选择状态: {saved_category_selection}")
+        
+        # 清除临时保存的状态
+        if hasattr(self, '_temp_saved_category_selection'):
+            delattr(self, '_temp_saved_category_selection')
+            logger.info("🔍 已清除临时保存的分类选择状态")
+        
+        # 强制确保分类选择状态不丢失
+        if saved_category_selection and not self.category_treeview.selection():
+            logger.info(f"🔍 检测到分类选择被清空，立即恢复: {saved_category_selection}")
+            self.category_treeview.selection_set(saved_category_selection)
+        
+        # 获取当前选中的子因子
+        subfactor_name = self.subfactor_var.get()
+        
+        logger.info(f"子因子选择状态: {subfactor_name}")
+        logger.info(f"可用子因子按钮: {list(self.subfactor_radios.keys())}")
+        logger.info(f"当前选中的RadioButton值: {subfactor_name}")
+        
+        # 验证子因子名称是否在可用列表中
+        if subfactor_name and subfactor_name not in self.subfactor_radios:
+            logger.warning(f"选中的子因子 '{subfactor_name}' 不在可用列表中: {list(self.subfactor_radios.keys())}")
+        
+        if not subfactor_name:
+            logger.info("子因子未选择，可能是列表刷新导致的事件触发，退出处理")
+            # 即使退出也要恢复分类选择状态
+            self._restore_category_selection_if_needed(saved_category_selection)
+            return
+        
+        logger.info(f"步骤2完成：子因子已选择并保存 -> {subfactor_name}")
+        
+        # 严格验证：必须先选择因子分类
+        category_selection = self.category_treeview.selection()
+        logger.info(f"🔍 验证时分类选择状态: {category_selection}")
+        
+        if not category_selection:
+            logger.warning("验证失败：未完成步骤1（选择因子分类），无法加载子因子配置")
+            logger.info("🔍 调用clear_config_areas前的分类选择状态")
+            self.clear_config_areas()
+            logger.info(f"🔍 调用clear_config_areas后的分类选择状态: {self.category_treeview.selection()}")
+            # 恢复分类选择状态
+            self._restore_category_selection_if_needed(saved_category_selection)
+            return
+        
+        # 获取当前选中的分类名称
+        selected_category_name = self.category_treeview.item(category_selection[0], 'text')
+        logger.info(f"验证步骤1的值：因子分类 = {selected_category_name}")
+        
+        # 验证子因子是否属于当前选中的分类
+        if self.validate_subfactor_belongs_to_category(subfactor_name, selected_category_name):
+            logger.info(f"验证通过：子因子 '{subfactor_name}' 属于分类 '{selected_category_name}'")
+            # 步骤3：根据分类名和子因子名查找并加载配置信息
+            logger.info(f"步骤3开始：根据分类='{selected_category_name}' 和子因子='{subfactor_name}' 查找配置信息")
+            
+            # 清空配置区域，确保UI重置
+            self.clear_config_areas()
+            
+            # 强制更新子因子变量值，确保使用最新选择
+            self.subfactor_var.set(subfactor_name)
+            logger.info(f"🔍 强制更新子因子变量值: {self.subfactor_var.get()}")
+            
+            # 加载子因子配置
+            self.load_subfactor_config(selected_category_name, subfactor_name)
+            logger.info(f"步骤3完成：配置信息加载完成")
+        else:
+            logger.error(f"验证失败：子因子 '{subfactor_name}' 不属于当前选中的分类 '{selected_category_name}'")
+            logger.error("请确保先选择正确的因子分类，再选择对应的子因子")
+            self.clear_config_areas()
+        
+        # 保护分类选择状态：恢复分类选择（如果之前有选择的话）
+        self._restore_category_selection_if_needed(saved_category_selection)
+    
+    def _restore_category_selection_if_needed(self, saved_category_selection):
+        """恢复分类选择状态的统一方法"""
+        if saved_category_selection:
+            current_selection = self.category_treeview.selection()
+            if not current_selection:
+                logger.info(f"🔍 恢复分类选择状态: {saved_category_selection}")
+                # 临时解绑事件避免触发递归
+                self.category_treeview.unbind('<<TreeviewSelect>>')
+                self.category_treeview.selection_set(saved_category_selection[0])
+                self.category_treeview.bind('<<TreeviewSelect>>', self.on_category_select)
+                logger.info(f"🔍 分类选择状态已恢复: {self.category_treeview.selection()}")
+            else:
+                logger.info(f"🔍 分类选择状态正常，无需恢复: {current_selection}")
+    
+    def get_selected_category(self):
+        """获取当前选中的分类名称"""
+        selection = self.category_treeview.selection()
+        if selection:
+            return self.category_treeview.item(selection[0], 'text')
+        return None
+    
+    def get_category_selection(self):
+        """获取当前分类选择状态"""
+        return self.category_treeview.selection()
+    
+    def find_category_for_subfactor(self, subfactor_name):
+        """查找子因子所属的分类"""
+        factor_categories = self.config_data.get("factor_categories", {})
+        
+        for category_name, sub_factors in factor_categories.items():
+            if isinstance(sub_factors, list):
+                for factor in sub_factors:
+                    if isinstance(factor, dict) and factor.get("name") == subfactor_name:
+                        return category_name
+        
+        return None
+    
+    def validate_subfactor_belongs_to_category(self, subfactor_name, category_name):
+        """验证子因子是否属于指定的分类"""
+        factor_categories = self.config_data.get("factor_categories", {})
+        sub_factors = factor_categories.get(category_name, [])
+        
+        if isinstance(sub_factors, list):
+            for factor in sub_factors:
+                if isinstance(factor, dict) and factor.get("name") == subfactor_name:
+                    return True
+        
+        return False
+    
+    def select_category_by_name(self, category_name):
+        """根据分类名称选中对应的分类项"""
+        for item in self.category_treeview.get_children():
+            if self.category_treeview.item(item, 'text') == category_name:
+                self.category_treeview.selection_set(item)
+                self.category_treeview.see(item)
+                logger.info(f"已选中分类: {category_name}")
+                break
+    
+    def refresh_subfactors(self, category_name):
+        """刷新子因子列表（仅显示指定分类的子因子）"""
+        # 清空现有的子因子按钮
+        for widget in self.subfactor_scrollable_frame.winfo_children():
+            widget.destroy()
+        
+        self.subfactor_radios = {}
+        
+        # 加载选中分类的子因子
+        factor_categories = self.config_data.get("factor_categories", {})
+        sub_factors = factor_categories.get(category_name, [])
+        
+        # 创建子因子选择按钮
+        for sub_factor in sub_factors:
+            factor_name = sub_factor.get("name", "未命名")
+            
+            radio = ttk.Radiobutton(
+                self.subfactor_scrollable_frame, 
+                text=factor_name,
+                variable=self.subfactor_var, 
+                value=factor_name,
+                style="Tech.TRadiobutton" if hasattr(ttk, "Style") else None,
+                command=lambda sf=factor_name: self.on_subfactor_select_with_name(sf)
+            )
+            radio.pack(anchor=tk.W, pady=3, padx=5)
+            self.subfactor_radios[factor_name] = radio
+        
+        logger.debug(f"刷新子因子列表完成，分类: {category_name}, 子因子数量: {len(sub_factors)}")
+    
+    def load_subfactor_config(self, category_name, subfactor_name):
+        """加载子因子配置到右侧区域"""
+        logger.info(f"加载子因子配置: 分类={category_name}, 子因子={subfactor_name}")
+        
+        # 直接使用已加载的配置数据，不再尝试从config_manager获取
+        # 找到对应的子因子数据
+        factor_categories = self.config_data.get("factor_categories", {})
+        sub_factors = factor_categories.get(category_name, [])
+        
+        logger.info(f"找到分类 '{category_name}' 下的子因子数量: {len(sub_factors)}")
+        
+        target_factor = None
+        for factor in sub_factors:
+            if factor.get("name") == subfactor_name:
+                target_factor = factor
+                logger.info(f"找到目标子因子: {factor}")
+                break
+        
+        if target_factor:
+            logger.info(f"找到目标子因子数据: {target_factor.get('name')}")
+            logger.info(f"子因子basic_info字段: {target_factor.get('basic_info', [])}")
+            
+            # 保存当前子因子数据到实例变量
+            self.current_factor_data = target_factor
+            logger.info(f"当前子因子的basic_info: {self.current_factor_data.get('basic_info', [])}")
+            
+            # 清空现有内容，确保UI重置
+            for widget in self.basic_info_content_frame.winfo_children():
+                widget.destroy()
+            
+            for widget in self.table_info_content_frame.winfo_children():
+                widget.destroy()
+            
+            # 保存当前子因子数据到实例变量
+            self.current_factor_data = target_factor
+            logger.info(f"当前子因子的basic_info: {self.current_factor_data.get('basic_info', [])}")
+            
+            # 设置基本信息配置界面
+            self.setup_basic_info_config(target_factor)
+            
+            # 设置表格信息配置界面
+            self.setup_table_info_config(target_factor)
+            
+            # 刷新UI显示
+            self.refresh_basic_info_fields(target_factor)
+            
+            logger.info(f"因子切换完成，当前展示的是子因子 '{target_factor.get('name')}' 的基本信息")
+            
+            logger.info(f"因子切换完成，当前展示的是子因子 '{subfactor_name}' 的基本信息")
+        else:
+            logger.error(f"未找到子因子 '{subfactor_name}' 在分类 '{category_name}' 中")
+    
+    def setup_basic_info_config(self, factor_data):
+        """设置基本信息配置界面"""
+        # 清空现有内容
+        for widget in self.basic_info_content_frame.winfo_children():
+            widget.destroy()
+        
+        # 保存当前子因子数据到实例变量，确保其他方法可以访问
+        self.current_factor_data = factor_data
+        logger.info(f"在setup_basic_info_config中保存子因子数据: {self.current_factor_data.get('name')}")
+        
+        # 创建左右分栏布局，参照整单基本信息页面
+        main_frame = ttk.Frame(self.basic_info_content_frame)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 左侧：可选择字段
+        left_frame = ttk.LabelFrame(main_frame, text="可选择字段", padding=5)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        
+        # 可选字段列表框
+        available_frame = ttk.Frame(left_frame)
+        available_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.basic_available_listbox = tk.Listbox(available_frame, selectmode=tk.SINGLE,
+                                                 font=('微软雅黑', 9), height=10,
+                                                 bg='#f8f9fa', selectbackground='#007acc',
+                                                 selectforeground='white', borderwidth=1,
+                                                 relief='solid', highlightthickness=0)
+        self.basic_available_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        basic_available_scrollbar = ttk.Scrollbar(available_frame, orient=tk.VERTICAL, command=self.basic_available_listbox.yview)
+        self.basic_available_listbox.configure(yscrollcommand=basic_available_scrollbar.set)
+        basic_available_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 中间：操作按钮
+        middle_frame = ttk.Frame(main_frame)
+        middle_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        
+        ttk.Button(middle_frame, text="→ 添加", command=self.add_basic_field).pack(pady=5, fill=tk.X)
+        ttk.Button(middle_frame, text="← 移除", command=self.remove_basic_field).pack(pady=5, fill=tk.X)
+        ttk.Button(middle_frame, text="↑ 上移", command=self.move_basic_field_up).pack(pady=5, fill=tk.X)
+        ttk.Button(middle_frame, text="↓ 下移", command=self.move_basic_field_down).pack(pady=5, fill=tk.X)
+        
+        # 右侧：已选择字段
+        right_frame = ttk.LabelFrame(main_frame, text="已选择字段", padding=5)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # 已选字段列表框
+        selected_frame = ttk.Frame(right_frame)
+        selected_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.basic_selected_listbox = tk.Listbox(selected_frame, selectmode=tk.SINGLE,
+                                                font=('微软雅黑', 9), height=10,
+                                                bg='#f0f8ff', selectbackground='#007acc',
+                                                selectforeground='white', borderwidth=1,
+                                                relief='solid', highlightthickness=0)
+        self.basic_selected_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        basic_selected_scrollbar = ttk.Scrollbar(selected_frame, orient=tk.VERTICAL, command=self.basic_selected_listbox.yview)
+        self.basic_selected_listbox.configure(yscrollcommand=basic_selected_scrollbar.set)
+        basic_selected_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 加载数据
+        self.refresh_basic_info_fields(factor_data)
+    
+    def setup_table_info_config(self, factor_data):
+        """设置表格字段配置界面"""
+        logger.info(f"开始设置表格字段配置界面，factor_data: {factor_data.get('name', 'Unknown')}")
+        
+        # 检查table_info_content_frame是否存在
+        if not hasattr(self, 'table_info_content_frame') or self.table_info_content_frame is None:
+            logger.error("table_info_content_frame 不存在，无法设置表格字段配置界面")
+            return
+        
+        # 清空现有内容
+        for widget in self.table_info_content_frame.winfo_children():
+            widget.destroy()
+        
+        logger.info("已清空表格字段配置区域的现有内容")
+        
+        # 字段配置区域（左右分栏）- 直接在table_info_content_frame中创建
+        fields_frame = ttk.Frame(self.table_info_content_frame)
+        fields_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 左侧：可选择字段
+        left_frame = ttk.LabelFrame(fields_frame, text="可选择字段", padding=5)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        
+        available_frame = ttk.Frame(left_frame)
+        available_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.table_available_listbox = tk.Listbox(available_frame, selectmode=tk.SINGLE,
+                                                 font=('微软雅黑', 9), height=8,
+                                                 bg='#f8f9fa', selectbackground='#007acc',
+                                                 selectforeground='white', borderwidth=1,
+                                                 relief='solid', highlightthickness=0)
+        self.table_available_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        table_available_scrollbar = ttk.Scrollbar(available_frame, orient=tk.VERTICAL, command=self.table_available_listbox.yview)
+        self.table_available_listbox.configure(yscrollcommand=table_available_scrollbar.set)
+        table_available_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 中间：操作按钮
+        middle_frame = ttk.Frame(fields_frame)
+        middle_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        
+        ttk.Button(middle_frame, text="→ 添加", command=self.add_table_field).pack(pady=5, fill=tk.X)
+        ttk.Button(middle_frame, text="← 移除", command=self.remove_table_field).pack(pady=5, fill=tk.X)
+        ttk.Button(middle_frame, text="↑ 上移", command=self.move_table_field_up).pack(pady=5, fill=tk.X)
+        ttk.Button(middle_frame, text="↓ 下移", command=self.move_table_field_down).pack(pady=5, fill=tk.X)
+        
+        # 右侧：已选择字段
+        right_frame = ttk.LabelFrame(fields_frame, text="已选择字段", padding=5)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        selected_frame = ttk.Frame(right_frame)
+        selected_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.table_selected_listbox = tk.Listbox(selected_frame, selectmode=tk.SINGLE,
+                                                font=('微软雅黑', 9), height=8,
+                                                bg='#f0f8ff', selectbackground='#007acc',
+                                                selectforeground='white', borderwidth=1,
+                                                relief='solid', highlightthickness=0)
+        self.table_selected_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        table_selected_scrollbar = ttk.Scrollbar(selected_frame, orient=tk.VERTICAL, command=self.table_selected_listbox.yview)
+        self.table_selected_listbox.configure(yscrollcommand=table_selected_scrollbar.set)
+        table_selected_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 加载数据
+        logger.info("开始刷新表格字段数据")
+        self.refresh_table_info_fields(factor_data)
+        logger.info("表格字段配置界面设置完成")
+        
+        # 注意：不在这里清除忽略标志，由load_subfactor_config统一管理
+    
+    # ==================== 新的因子分类操作方法 ====================
+    
+    def edit_factor_category(self):
+        """编辑因子分类"""
+        selection = self.get_category_selection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个分类！")
+            return
+        
+        old_name = self.get_selected_category()
+        new_name = simpledialog.askstring("编辑分类", f"请输入新的分类名称:", initialvalue=old_name)
+        
+        if new_name and new_name.strip() and new_name.strip() != old_name:
+            new_name = new_name.strip()
+            factor_categories = self.config_data.get("factor_categories", {})
+            
+            if new_name not in factor_categories:
+                # 重命名分类
+                factor_categories[new_name] = factor_categories.pop(old_name)
+                self.refresh_factor_categories()
+                logger.info(f"编辑因子分类: {old_name} -> {new_name}")
+            else:
+                messagebox.showwarning("警告", "分类名称已存在！")
+    
+    def delete_factor_category(self):
+        """删除因子分类"""
+        selection = self.get_category_selection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个分类！")
+            return
+        
+        category_name = self.get_selected_category()
+        
+        if messagebox.askyesno("确认删除", f"确定要删除分类 '{category_name}' 及其所有子因子吗？"):
+            factor_categories = self.config_data.get("factor_categories", {})
+            if category_name in factor_categories:
+                del factor_categories[category_name]
+                self.refresh_factor_categories()
+                logger.info(f"删除因子分类: {category_name}")
+    
+    def add_sub_factor_new(self):
+        """添加子因子（新方法）"""
+        selection = self.get_category_selection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个分类！")
+            return
+        
+        category_name = self.get_selected_category()
+        factor_name = simpledialog.askstring("添加子因子", f"请输入子因子名称 (分类: {category_name}):")
+        
+        if factor_name and factor_name.strip():
+            factor_name = factor_name.strip()
+            
+            # 检查是否已存在
+            existing_factors = [f.get("name") for f in self.config_data.get("factor_categories", {}).get(category_name, [])]
+            if factor_name not in existing_factors:
+                new_factor = {
+                    "name": factor_name,
+                    "basic_info": [],
+                    "table_info": {}
+                }
+                self.config_data.setdefault("factor_categories", {}).setdefault(category_name, []).append(new_factor)
+                self.refresh_subfactors(category_name)
+                logger.info(f"添加子因子: {category_name} -> {factor_name}")
+            else:
+                messagebox.showwarning("警告", "子因子已存在！")
+    
+    def edit_sub_factor_new(self):
+        """编辑子因子（新方法）"""
+        category_selection = self.get_category_selection()
+        subfactor_name = self.subfactor_var.get()
+        
+        if not category_selection or not subfactor_name:
+            messagebox.showwarning("警告", "请先选择一个子因子！")
+            return
+        
+        category_name = self.get_selected_category()
+        old_name = subfactor_name
+        new_name = simpledialog.askstring("编辑子因子", f"请输入新的子因子名称:", initialvalue=old_name)
+        
+        if new_name and new_name.strip() and new_name.strip() != old_name:
+            new_name = new_name.strip()
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            existing_names = [f.get("name") for f in factors]
+            
+            if new_name not in existing_names:
+                for factor in factors:
+                    if factor.get("name") == old_name:
+                        factor["name"] = new_name
+                        break
+                self.refresh_subfactors(category_name)
+                logger.info(f"编辑子因子名称: {old_name} -> {new_name}")
+            else:
+                messagebox.showwarning("警告", "子因子名称已存在！")
+    
+    def delete_sub_factor_new(self):
+        """删除子因子（新方法）"""
+        category_selection = self.get_category_selection()
+        subfactor_name = self.subfactor_var.get()
+        
+        if not category_selection or not subfactor_name:
+            messagebox.showwarning("警告", "请先选择一个子因子！")
+            return
+        
+        category_name = self.get_selected_category()
+        
+        if messagebox.askyesno("确认删除", f"确定要删除子因子 '{subfactor_name}' 吗？"):
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            self.config_data["factor_categories"][category_name] = [f for f in factors if f.get("name") != subfactor_name]
+            self.refresh_subfactors(category_name)
+            self.clear_config_areas()
+            logger.info(f"删除子因子: {category_name} -> {subfactor_name}")
+    
+    # ==================== 右侧配置区域数据刷新方法 ====================
+    
+    def refresh_basic_info_fields(self, factor_data):
+        """刷新基本信息字段列表"""
+        logger.info(f"开始刷新基本信息字段，因子: {factor_data.get('name', '未知')}")
+        
+        # 清空列表
+        self.basic_available_listbox.delete(0, tk.END)
+        self.basic_selected_listbox.delete(0, tk.END)
+        
+        # 获取所有字段定义
+        display_names = self.config_data.get("display_names", {})
+        selected_fields = factor_data.get("basic_info", [])
+        
+        logger.info(f"display_names字段总数: {len(display_names)}")
+        logger.info(f"子因子 '{factor_data.get('name')}' 的已选字段: {selected_fields}")
+        
+        # 过滤出作用范围包含"子因子基本信息"的字段
+        available_fields = []
+        for field, field_info in display_names.items():
+            scope = field_info.get("scope", [])
+            # scope可能是字符串或列表
+            if isinstance(scope, str):
+                scope = [scope]
+            if "子因子基本信息" in scope:
+                available_fields.append(field)
+                logger.debug(f"字段 '{field}' 符合条件，scope: {scope}")
+        
+        logger.info(f"过滤后可用字段数: {len(available_fields)}, 字段列表: {available_fields}")
+        
+        # 填充可选字段（排除已选择的）
+        added_to_available = 0
+        for field in available_fields:
+            if field not in selected_fields:
+                display_name = display_names.get(field, {}).get("display_name", field)
+                self.basic_available_listbox.insert(tk.END, f"{display_name}")
+                added_to_available += 1
+                logger.debug(f"添加到可选列表: {field} -> {display_name}")
+        
+        logger.info(f"实际添加到可选列表的字段数: {added_to_available}")
+        
+        # 填充已选择字段（按顺序显示）
+        added_to_selected = 0
+        for field in selected_fields:
+            if field in display_names:
+                display_name = display_names.get(field, {}).get("display_name", field)
+                self.basic_selected_listbox.insert(tk.END, f"{display_name}")
+                added_to_selected += 1
+                logger.debug(f"添加到已选列表: {field} -> {display_name}")
+            else:
+                logger.warning(f"已选字段 '{field}' 在display_names中不存在")
+        
+        logger.info(f"实际添加到已选列表的字段数: {added_to_selected}")
+        logger.info(f"基本信息字段刷新完成")
+    
+    def refresh_table_info_fields(self, factor_data):
+        """刷新表格字段列表"""
+        # 清空列表
+        self.table_available_listbox.delete(0, tk.END)
+        self.table_selected_listbox.delete(0, tk.END)
+        
+        # 获取当前数据层次
+        hierarchy = getattr(self, 'table_hierarchy_var', None)
+        if hierarchy is None:
+            logger.warning("table_hierarchy_var未初始化，使用默认值part")
+            hierarchy = "part"
+        else:
+            hierarchy = hierarchy.get()
+        
+        logger.info(f"刷新表格字段列表，当前层次: {hierarchy}")
+        
+        # 获取该层次的所有可用字段
+        all_fields = self.config_data.get("display_names", {})
+        hierarchy_fields = [field for field, info in all_fields.items() 
+                           if hierarchy in info.get("scope", [])]
+        
+        # 获取已选择字段
+        selected_fields = factor_data.get("table_info", {}).get(hierarchy, [])
+        
+        # 填充可选字段（排除已选择的）
+        for field in hierarchy_fields:
+            if field not in selected_fields:
+                display_name = all_fields.get(field, {}).get("display_name", field)
+                self.table_available_listbox.insert(tk.END, f"{field} ({display_name})")
+        
+        # 填充已选择字段
+        for field in selected_fields:
+            display_name = all_fields.get(field, {}).get("display_name", field)
+            self.table_selected_listbox.insert(tk.END, f"{field} ({display_name})")
+        
+        # 注意：不在这里清除忽略标志，由调用方统一管理
+    
+    def on_hierarchy_change(self):
+        """数据层次选择改变时刷新表格字段配置"""
+        factor_data = self.get_current_factor_data()
+        if factor_data and hasattr(self, 'table_available_listbox'):
+            self.refresh_table_info_fields(factor_data)
+    
+    def on_table_hierarchy_change(self, factor_data):
+        """数据层次改变时刷新字段列表"""
+        self.refresh_table_info_fields(factor_data)
+    
+    # ==================== 基本信息字段操作方法 ====================
+    
+    def add_basic_field(self):
+        """添加基本信息字段"""
+        selection = self.basic_available_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
+            return
+        
+        # 获取选中的字段
+        selected_display_name = self.basic_available_listbox.get(selection[0])
+        # 根据显示名找到对应的字段名
+        field_name = None
+        display_names = self.config_data.get("display_names", {})
+        for field, field_info in display_names.items():
+            if field_info.get("display_name", field) == selected_display_name:
+                field_name = field
+                break
+        
+        if not field_name:
+            messagebox.showerror("错误", "无法找到对应的字段！")
+            return
+        
+        # 获取当前选中的子因子
+        subfactor_name = self.subfactor_var.get()
+        
+        if subfactor_name:
+            category_name = self.find_category_for_subfactor(subfactor_name)
+            
+            if not category_name:
+                messagebox.showerror("错误", "无法找到子因子所属的分类！")
+                return
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    if "basic_info" not in factor:
+                        factor["basic_info"] = []
+                    factor["basic_info"].append(field_name)
+                    break
+            
+            # 保存配置并刷新界面
+            self.save_config(show_success_message=False)
+            self.refresh_basic_info_fields(self.get_current_factor_data())
+            logger.info(f"添加基本信息字段: {field_name}")
+    
+    def remove_basic_field(self):
+        """移除基本信息字段"""
+        selection = self.basic_selected_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
+            return
+        
+        # 获取选中的字段
+        selected_display_name = self.basic_selected_listbox.get(selection[0])
+        # 根据显示名找到对应的字段名
+        field_name = None
+        display_names = self.config_data.get("display_names", {})
+        for field, field_info in display_names.items():
+            if field_info.get("display_name", field) == selected_display_name:
+                field_name = field
+                break
+        
+        if not field_name:
+            messagebox.showerror("错误", "无法找到对应的字段！")
+            return
+        
+        # 获取当前选中的子因子
+        subfactor_name = self.subfactor_var.get()
+        
+        if subfactor_name:
+            category_name = self.find_category_for_subfactor(subfactor_name)
+            
+            if not category_name:
+                messagebox.showerror("错误", "无法找到子因子所属的分类！")
+                return
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    if field_name in factor.get("basic_info", []):
+                        factor["basic_info"].remove(field_name)
+                    break
+            
+            # 保存配置并刷新界面
+            self.save_config(show_success_message=False)
+            self.refresh_basic_info_fields(self.get_current_factor_data())
+            logger.info(f"移除基本信息字段: {field_name}")
+    
+    def move_basic_field_up(self):
+        """上移基本信息字段"""
+        selection = self.basic_selected_listbox.curselection()
+        if not selection or selection[0] == 0:
+            return
+        
+        index = selection[0]
+        selected_display_name = self.basic_selected_listbox.get(index)
+        # 根据显示名找到对应的字段名
+        field_name = None
+        display_names = self.config_data.get("display_names", {})
+        for field, field_info in display_names.items():
+            if field_info.get("display_name", field) == selected_display_name:
+                field_name = field
+                break
+        
+        if not field_name:
+            return
+        
+        # 获取当前选中的子因子
+        subfactor_name = self.subfactor_var.get()
+        
+        if subfactor_name:
+            category_name = self.find_category_for_subfactor(subfactor_name)
+            
+            if not category_name:
+                return
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    basic_info = factor.get("basic_info", [])
+                    if index > 0 and index < len(basic_info):
+                        basic_info[index], basic_info[index-1] = basic_info[index-1], basic_info[index]
+                    break
+            
+            # 保存配置并刷新界面，保持选择
+            self.save_config(show_success_message=False)
+            self.refresh_basic_info_fields(self.get_current_factor_data())
+            self.basic_selected_listbox.selection_set(index-1)
+    
+    def move_basic_field_down(self):
+        """下移基本信息字段"""
+        selection = self.basic_selected_listbox.curselection()
+        if not selection:
+            return
+        
+        index = selection[0]
+        max_index = self.basic_selected_listbox.size() - 1
+        if index == max_index:
+            return
+        
+        selected_display_name = self.basic_selected_listbox.get(index)
+        # 根据显示名找到对应的字段名
+        field_name = None
+        display_names = self.config_data.get("display_names", {})
+        for field, field_info in display_names.items():
+            if field_info.get("display_name", field) == selected_display_name:
+                field_name = field
+                break
+        
+        if not field_name:
+            return
+        
+        # 获取当前选中的子因子
+        subfactor_name = self.subfactor_var.get()
+        
+        if subfactor_name:
+            category_name = self.find_category_for_subfactor(subfactor_name)
+            
+            if not category_name:
+                return
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    basic_info = factor.get("basic_info", [])
+                    if index < len(basic_info) - 1:
+                        basic_info[index], basic_info[index+1] = basic_info[index+1], basic_info[index]
+                    break
+            
+            # 保存配置并刷新界面，保持选择
+            self.save_config(show_success_message=False)
+            self.refresh_basic_info_fields(self.get_current_factor_data())
+            self.basic_selected_listbox.selection_set(index+1)
+    
+    # ==================== 表格字段操作方法 ====================
+    
+    def add_table_field(self):
+        """添加表格字段"""
+        selection = self.table_available_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
+            return
+        
+        # 获取选中的字段
+        selected_text = self.table_available_listbox.get(selection[0])
+        field_name = selected_text.split(" (")[0]
+        
+        # 获取当前选中的子因子和数据层次
+        category_selection = self.get_category_selection()
+        subfactor_selection = self.subfactor_listbox.curselection()
+        hierarchy = self.table_hierarchy_var.get()
+        
+        if category_selection and subfactor_selection:
+            category_name = self.get_selected_category()
+            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    if "table_info" not in factor:
+                        factor["table_info"] = {}
+                    if hierarchy not in factor["table_info"]:
+                        factor["table_info"][hierarchy] = []
+                    factor["table_info"][hierarchy].append(field_name)
+                    break
+            
+            # 刷新界面
+            self.refresh_table_info_fields(self.get_current_factor_data())
+            logger.info(f"添加表格字段: {field_name} ({hierarchy})")
+    
+    def remove_table_field(self):
+        """移除表格字段"""
+        selection = self.table_selected_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个字段！")
+            return
+        
+        # 获取选中的字段
+        selected_text = self.table_selected_listbox.get(selection[0])
+        field_name = selected_text.split(" (")[0]
+        
+        # 获取当前选中的子因子和数据层次
+        category_selection = self.get_category_selection()
+        subfactor_selection = self.subfactor_listbox.curselection()
+        hierarchy = self.table_hierarchy_var.get()
+        
+        if category_selection and subfactor_selection:
+            category_name = self.get_selected_category()
+            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    table_info = factor.get("table_info", {})
+                    if hierarchy in table_info and field_name in table_info[hierarchy]:
+                        table_info[hierarchy].remove(field_name)
+                    break
+            
+            # 刷新界面
+            self.refresh_table_info_fields(self.get_current_factor_data())
+            logger.info(f"移除表格字段: {field_name} ({hierarchy})")
+    
+    def move_table_field_up(self):
+        """上移表格字段"""
+        selection = self.table_selected_listbox.curselection()
+        if not selection or selection[0] == 0:
+            return
+        
+        index = selection[0]
+        hierarchy = self.table_hierarchy_var.get()
+        
+        # 获取当前选中的子因子
+        category_selection = self.get_category_selection()
+        subfactor_selection = self.subfactor_listbox.curselection()
+        
+        if category_selection and subfactor_selection:
+            category_name = self.get_selected_category()
+            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    table_info = factor.get("table_info", {}).get(hierarchy, [])
+                    if index > 0 and index < len(table_info):
+                        table_info[index], table_info[index-1] = table_info[index-1], table_info[index]
+                    break
+            
+            # 刷新界面并保持选择
+            self.refresh_table_info_fields(self.get_current_factor_data())
+            self.table_selected_listbox.selection_set(index-1)
+    
+    def move_table_field_down(self):
+        """下移表格字段"""
+        selection = self.table_selected_listbox.curselection()
+        if not selection:
+            return
+        
+        index = selection[0]
+        max_index = self.table_selected_listbox.size() - 1
+        if index == max_index:
+            return
+        
+        hierarchy = self.table_hierarchy_var.get()
+        
+        # 获取当前选中的子因子
+        category_selection = self.get_category_selection()
+        subfactor_selection = self.subfactor_listbox.curselection()
+        
+        if category_selection and subfactor_selection:
+            category_name = self.get_selected_category()
+            subfactor_name = self.subfactor_listbox.get(subfactor_selection[0])
+            
+            # 更新配置数据
+            factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+            for factor in factors:
+                if factor.get("name") == subfactor_name:
+                    table_info = factor.get("table_info", {}).get(hierarchy, [])
+                    if index < len(table_info) - 1:
+                        table_info[index], table_info[index+1] = table_info[index+1], table_info[index]
+                    break
+            
+            # 刷新界面并保持选择
+            self.refresh_table_info_fields(self.get_current_factor_data())
+            self.table_selected_listbox.selection_set(index+1)
+    
+    def get_current_factor_data(self):
+        """获取当前选中子因子的数据"""
+        subfactor_name = self.subfactor_var.get()
+        
+        if subfactor_name:
+            category_name = self.find_category_for_subfactor(subfactor_name)
+            
+            if category_name:
+                factors = self.config_data.get("factor_categories", {}).get(category_name, [])
+                for factor in factors:
+                    if factor.get("name") == subfactor_name:
+                        return factor
+        
+        return {"basic_info": [], "table_info": {}}
+      
     def add_factor_category(self):
         """添加因子分类"""
         category_name = simpledialog.askstring("添加分类", "请输入分类名称:")
@@ -1624,6 +2805,83 @@ class ConfigManagerUI:
             
         except Exception as e:
             logger.error(f"刷新UI失败: {e}")
+    
+    def sync_main_app_selection_state(self):
+        """同步主应用的当前选择状态到配置管理器"""
+        try:
+            # 检查必要的UI组件是否已创建
+            if not hasattr(self, 'category_treeview') or not hasattr(self, 'subfactor_scrollable_frame'):
+                logger.info("🔍 UI组件尚未创建完成，延迟同步")
+                # 延迟执行同步
+                if hasattr(self, 'root') and self.root:
+                    self.root.after(500, self.sync_main_app_selection_state)
+                return
+            
+            if self.app_controller and hasattr(self.app_controller, 'view'):
+                main_view = self.app_controller.view
+                if hasattr(main_view, 'factor_view'):
+                    factor_view = main_view.factor_view
+                    
+                    # 获取主应用当前选择的分类
+                    current_category = factor_view.category_var.get()
+                    logger.info(f"🔍 从主应用获取的分类选择状态: '{current_category}'")
+                    
+                    if current_category and hasattr(self, 'category_treeview'):
+                        # 在配置管理器中选择对应的分类
+                        categories = list(self.config_data.get("factor_categories", {}).keys())
+                        if current_category in categories:
+                            # 设置同步标志，防止事件处理中的递归调用
+                            self._syncing_from_main_app = True
+                            
+                            # 临时解绑事件避免触发递归
+                            self.category_treeview.unbind('<<TreeviewSelect>>')
+                            
+                            
+                            # 直接刷新子因子列表，不触发事件
+                            self.refresh_subfactors(current_category)
+                            
+                            # 重新绑定事件
+                            self.category_treeview.bind('<<TreeviewSelect>>', self.on_category_select)
+                            
+                            logger.info(f"🔍 已同步分类选择状态到配置管理器: {current_category}")
+                            
+                            # 获取主应用当前选择的子因子
+                            current_subfactor = factor_view.subfactor_var.get()
+                            logger.info(f"🔍 从主应用获取的子因子选择状态: '{current_subfactor}'")
+                            
+                            if current_subfactor:
+                                # 在配置管理器中选择对应的子因子
+                                if current_subfactor in self.subfactor_radios:
+                                    # 设置单选按钮的值
+                                    self.subfactor_var.set(current_subfactor)
+                                    
+                                    # 直接加载子因子配置，不触发事件
+                                    self.load_subfactor_config(current_category, current_subfactor)
+                                    
+                                    logger.info(f"🔍 已同步子因子选择状态到配置管理器: {current_subfactor}")
+                            
+                            # 清除同步标志
+                            self._syncing_from_main_app = False
+                        else:
+                            logger.info(f"🔍 主应用选择的分类 '{current_category}' 在配置中不存在")
+                            # 清除同步标志
+                            self._syncing_from_main_app = False
+                    else:
+                        logger.info("🔍 主应用未选择分类或配置管理器分类列表未初始化")
+                        # 清除同步标志
+                        self._syncing_from_main_app = False
+                else:
+                    logger.info("🔍 主应用视图中没有factor_view组件")
+                    # 清除同步标志
+                    self._syncing_from_main_app = False
+            else:
+                logger.info("🔍 没有可用的主应用控制器引用")
+                # 清除同步标志
+                self._syncing_from_main_app = False
+        except Exception as e:
+            logger.error(f"同步主应用选择状态失败: {e}")
+            # 清除同步标志
+            self._syncing_from_main_app = False
     
     def close_config_window(self):
         """关闭配置窗口"""
