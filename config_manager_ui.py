@@ -788,10 +788,13 @@ class ConfigManagerUI:
                 # 选中新添加的字段
                 self.selected_fields_listbox.selection_set(tk.END)
                 
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                
                 # 确保更新UI
                 self.root.update_idletasks()
                 
-                logger.info(f"添加字段成功: {field_name} ({display_name})")
+                logger.info(f"添加字段成功: {field_name} ({display_name})，已保存到配置文件")
             else:
                 logger.error(f"无法找到字段名称: {display_name}")
                 messagebox.showerror("错误", f"无法找到字段名称: {display_name}")
@@ -833,10 +836,13 @@ class ConfigManagerUI:
                 # 添加到可选择列表
                 self.available_fields_listbox.insert(tk.END, display_name)
                 
+                # 保存配置到文件
+                self.save_config(show_success_message=False)
+                
                 # 确保更新UI
                 self.root.update_idletasks()
                 
-                logger.info(f"移除字段成功: {field_name} ({display_name})")
+                logger.info(f"移除字段成功: {field_name} ({display_name})，已保存到配置文件")
             else:
                 logger.error(f"索引超出范围: {index} >= {len(fields)}")
                 messagebox.showerror("错误", "无法移除字段，索引超出范围")
@@ -859,13 +865,16 @@ class ConfigManagerUI:
             # 交换位置
             fields[index], fields[new_index] = fields[new_index], fields[index]
             
+            # 保存配置到文件
+            self.save_config(show_success_message=False)
+            
             # 刷新界面
             self.refresh_document_fields()
             
             # 保持选中状态
             self.selected_fields_listbox.selection_set(new_index)
             
-            logger.info(f"移动字段位置: {index} -> {new_index}")
+            logger.info(f"移动字段位置: {index} -> {new_index}，已保存到配置文件")
     
 
     
